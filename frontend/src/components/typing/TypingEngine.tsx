@@ -1,10 +1,12 @@
+// frontend/src/components/typing/TypingEngine.tsx
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import confetti from "canvas-confetti";
-import { Timer, Zap, Target, Trophy } from "lucide-react";
+import { Timer, Zap, Target, Trophy, Volume2, VolumeX, Activity, MousePointer2 } from "lucide-react";
 
+// --- PROPS & INTERFACES ---
 interface TypingEngineProps {
   code: string;
   problemId?: string;
@@ -27,9 +29,15 @@ interface GameResultPayload extends GameStats {
   language?: string;
 }
 
-// --- ANIMATION CONSTANTS ---
-const LINE_HEIGHT_PX = 36; // Height of each line in pixels
-const FONT_SIZE_PX = 20;   // roughly text-xl
+interface UserConfig {
+  soundEnabled: boolean;
+  smoothCursor: boolean;
+  hitEffects: boolean;
+}
+
+// --- CONSTANTS ---
+const LINE_HEIGHT_PX = 36;
+const FONT_SIZE_PX = 20;
 
 export default function TypingEngine({ 
   code: RAW_CODE = "", 
@@ -41,11 +49,18 @@ export default function TypingEngine({
   onMaxLinesChange 
 }: TypingEngineProps) {
   
+  // --- CORE STATE ---
   const [userInput, setUserInput] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isFinished, setIsFinished] = useState(false);
   const [displayLines, setDisplayLines] = useState(maxLinesVisible);
-  
+  const [config, setConfig] = useState<UserConfig>({
+    soundEnabled: true,
+    smoothCursor: true,
+    hitEffects: true
+  });
+
+  // Stats
   const [currentWpm, setCurrentWpm] = useState(0);
   const [currentAccuracy, setCurrentAccuracy] = useState(100);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -53,13 +68,16 @@ export default function TypingEngine({
   const [userRank, setUserRank] = useState<number>(1);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
+  // Refs
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cursorRef = useRef<HTMLDivElement>(null);
+  
+  // --- AUDIO REF (Singleton) ---
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const handleFocus = () => inputRef.current?.focus();
-
-  // 1. LOGICAL MAP: Maps visual lines to logical code lines (skips empty spacer lines)
+  // --- DERIVED MEMOS ---
   const visualToLogicalMap = useMemo(() => {
     const lines = RAW_CODE.split("\n");
     let logicalIndex = 0;
@@ -69,7 +87,6 @@ export default function TypingEngine({
     });
   }, [RAW_CODE]);
 
-  // 2. GAME CODE: The actual string the user needs to type (indentation removed)
   const GAME_CODE = useMemo(() => {
     return RAW_CODE
       .replace(/\r/g, "")
@@ -79,6 +96,21 @@ export default function TypingEngine({
       .join("\n");
   }, [RAW_CODE]);
 
+  const handleFocus = () => inputRef.current?.focus();
+
+  // Load config
+  useEffect(() => {
+    const saved = localStorage.getItem("typingConfig");
+    if (saved) setConfig(JSON.parse(saved));
+  }, []);
+
+  const toggleConfig = (key: keyof UserConfig) => {
+    const newConfig = { ...config, [key]: !config[key] };
+    setConfig(newConfig);
+    localStorage.setItem("typingConfig", JSON.stringify(newConfig));
+  };
+
+  // Timer
   useEffect(() => {
     if (startTime && !isFinished) {
       timerIntervalRef.current = setInterval(() => {
@@ -103,20 +135,90 @@ export default function TypingEngine({
       inputRef.current.value = "";
       inputRef.current.focus();
     }
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = 0;
-    }
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft = 0;
   }, [RAW_CODE]); 
 
-  // Auto-Scroll Logic (Horizontal Only - Vertical is handled by Transform)
+  // --- SOUND FUNCTION (Uses Persistent Ref) ---
+  const playSound = (type: 'thock' | 'error') => {
+    if (!config.soundEnabled) return;
+
+    try {
+      // 1. Initialize Context ONLY if it doesn't exist
+      if (!audioCtxRef.current) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          audioCtxRef.current = new AudioContext();
+        }
+      }
+
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+
+      // 2. Resume if suspended (browser autoplay policy)
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      if (type === 'thock') {
+        osc.frequency.setValueAtTime(300, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        osc.type = "sine";
+      } else {
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        osc.type = "sawtooth";
+      }
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+
+    } catch (e) {
+      console.error("Audio error", e);
+    }
+  };
+
+
+  // --- SMOOTH CURSOR LOGIC ---
+  useLayoutEffect(() => {
+    if (!config.smoothCursor) return;
+    
+    const activeChar = document.getElementById("active-cursor-anchor");
+    const cursorEl = cursorRef.current;
+
+    if (activeChar && cursorEl) {
+      const container = cursorEl.offsetParent as HTMLElement; 
+      
+      if (container) {
+          const charRect = activeChar.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+
+          const relativeTop = charRect.top - containerRect.top;
+          const relativeLeft = charRect.left - containerRect.left;
+          
+          cursorEl.style.transform = `translate(${relativeLeft}px, ${relativeTop}px)`;
+          cursorEl.style.height = `${charRect.height}px`;
+      }
+    }
+  }, [userInput, config.smoothCursor, displayLines]);
+
+  // Horizontal Scroll
   useEffect(() => {
     const container = scrollContainerRef.current;
-    const cursor = document.getElementById("active-cursor");
+    const anchor = document.getElementById("active-cursor-anchor");
 
-    if (container && cursor) {
+    if (container && anchor) {
       const containerRect = container.getBoundingClientRect();
-      const cursorRect = cursor.getBoundingClientRect();
-      const relativeLeft = cursorRect.left - containerRect.left;
+      const anchorRect = anchor.getBoundingClientRect();
+      const relativeLeft = anchorRect.left - containerRect.left;
       const containerWidth = containerRect.width;
       
       const RIGHT_BUFFER = 150; 
@@ -154,22 +256,23 @@ export default function TypingEngine({
 
     if (!startTime && newValue.length === 1) setStartTime(Date.now());
     
-    // Allow Backspace
     if (newValue.length < userInput.length) {
       setUserInput(newValue);
       return;
     }
 
-    // Stop Overflow
     if (newValue.length > GAME_CODE.length) return;
 
-    // Strict Newline Guard
     const currentCharIndex = userInput.length;
     const expectedChar = GAME_CODE[currentCharIndex];
     const typedChar = newValue.slice(-1);
 
     if (typedChar === "\n" && expectedChar !== "\n") return; 
     if (expectedChar === "\n" && typedChar !== "\n") return; 
+
+    // CALL NEW SOUND FUNCTION
+    if (typedChar === expectedChar) playSound('thock');
+    else playSound('error');
 
     setUserInput(newValue);
 
@@ -179,7 +282,6 @@ export default function TypingEngine({
       setCurrentAccuracy(liveStats.accuracy);
     }
 
-    // Win Condition
     if (newValue.length === GAME_CODE.length) {
       setIsFinished(true);
       const stats = calculateStats(newValue, Date.now());
@@ -213,25 +315,17 @@ export default function TypingEngine({
   // --- RENDER PREP ---
   const userNewlineCount = (userInput.match(/\n/g) || []).length;
   const totalCodeLines = visualToLogicalMap.length;
-
-  // LOGIC FIX 1: Determine if we actually need to scroll
-  // We only enable sliding/masking if the code is longer than the display limit
   const isLongFile = displayLines !== 999 && totalCodeLines > displayLines;
 
-  // Center Calculation: -(ActiveLine * LineHeight) + (ContainerHeight/2 - LineHeight/2)
   const containerHeight = isLongFile ? displayLines * LINE_HEIGHT_PX : totalCodeLines * LINE_HEIGHT_PX;
   const centerYOffset = (containerHeight / 2) - (LINE_HEIGHT_PX / 2);
-
-  // LOGIC FIX 2: TranslateY
-  // If we are sliding (isLongFile), we allow the transform to push positive (down) 
-  // so the first line sits in the "Sweet Spot" (center) and isn't hidden by the mask.
-  const translateY = isLongFile 
-    ? -(userNewlineCount * LINE_HEIGHT_PX) + centerYOffset
-    : 0; // If short file, no transform needed
+  const translateY = isLongFile ? -(userNewlineCount * LINE_HEIGHT_PX) + centerYOffset : 0;
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-4">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 relative group">
       
+
+
       {/* 📊 LIVE HUD */}
       <div className="flex justify-between items-center bg-white/20 backdrop-blur-md p-4 rounded-lg border border-white/30 text-gray-800 font-mono text-sm shadow-lg">
         <div className="flex gap-6">
@@ -253,31 +347,63 @@ export default function TypingEngine({
         </div>
       </div>
 
-      {/* LINES TOGGLE */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/30 text-gray-800 font-mono text-xs shadow-lg">
-        <span className="opacity-70 uppercase tracking-wider font-semibold">Lines Visible:</span>
-        <div className="flex gap-2">
-          {[1, 3, 5, 10].map((lineCount) => {
-            return (
-              <button
-                key={lineCount}
-                disabled={startTime !== null}
-                onClick={() => {
-                  setDisplayLines(lineCount);
-                  onMaxLinesChange?.(lineCount);
-                }}
-                className={`px-2 py-1 rounded border transition-all text-xs font-semibold ${
-                  startTime !== null
-                    ? "bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed opacity-50"
-                    : displayLines === lineCount
-                      ? "bg-black text-white border-black"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-black"
-                }`}
-              >
-                {lineCount}
-              </button>
-            );
-          })}
+      {/* CONTROLS TOOLBAR */}
+      <div className="flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/30 text-gray-800 font-mono text-xs shadow-lg z-20">
+        
+        {/* LEFT: LINES VISIBLE */}
+        <div className="flex items-center gap-3">
+          <span className="opacity-70 uppercase tracking-wider font-semibold">View:</span>
+          <div className="flex gap-1">
+            {[1, 3, 5, 10, "All"].map((lineCount) => {
+              const value = lineCount === "All" ? 999 : (lineCount as number); 
+              return (
+                <button
+                  key={lineCount}
+                  disabled={startTime !== null}
+                  onClick={() => {
+                    setDisplayLines(value);
+                    onMaxLinesChange?.(value);
+                  }}
+                  className={`px-2 py-1 rounded border transition-all text-xs font-semibold ${
+                    startTime !== null
+                      ? "bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed opacity-50"
+                      : displayLines === value
+                        ? "bg-black text-white border-black"
+                        : "bg-white text-gray-700 border-gray-300 hover:border-black"
+                  }`}
+                >
+                  {lineCount}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT: SETTINGS TOGGLES */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => toggleConfig('soundEnabled')}
+            className={`flex items-center gap-1 px-2 py-1 rounded transition-all text-xs font-semibold ${config.soundEnabled ? 'bg-black text-white' : 'bg-white text-gray-700 border border-gray-300 hover:border-black'}`}
+          >
+            {config.soundEnabled ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+            <span>Sound</span>
+          </button>
+
+          <button 
+            onClick={() => toggleConfig('smoothCursor')}
+            className={`flex items-center gap-1 px-2 py-1 rounded transition-all text-xs font-semibold ${config.smoothCursor ? 'bg-black text-white' : 'bg-white text-gray-700 border border-gray-300 hover:border-black'}`}
+          >
+            <MousePointer2 className="w-3 h-3" />
+            <span>Cursor</span>
+          </button>
+
+          <button 
+            onClick={() => toggleConfig('hitEffects')}
+            className={`flex items-center gap-1 px-2 py-1 rounded transition-all text-xs font-semibold ${config.hitEffects ? 'bg-black text-white' : 'bg-white text-gray-700 border border-gray-300 hover:border-black'}`}
+          >
+            <Activity className="w-3 h-3" />
+            <span>Effects</span>
+          </button>
         </div>
       </div>
 
@@ -303,7 +429,6 @@ export default function TypingEngine({
           ref={scrollContainerRef} 
           className="relative w-full h-full overflow-hidden"
           style={{
-             // Only apply mask if the file is longer than the view window
              maskImage: isLongFile ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none',
              WebkitMaskImage: isLongFile ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none'
           }}
@@ -311,7 +436,6 @@ export default function TypingEngine({
           <Highlight theme={themes.vsLight} code={RAW_CODE} language={language || "python"}>
             {({ className, style, tokens: allTokens, getLineProps, getTokenProps }) => {
               
-              // GLOBAL TRACKER for where we are in the GAME_CODE string
               let logicalCharIndex = 0;
 
               return (
@@ -324,26 +448,35 @@ export default function TypingEngine({
                         minWidth: "fit-content", 
                         fontWeight: 600,
                         fontSize: `${FONT_SIZE_PX}px`,
-                        // SLIDING MAGIC
                         transform: `translateY(${translateY}px)`,
                         transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)', 
-                        padding: '0 2rem'
+                        padding: '0 2rem',
+                        position: 'relative'
                     }}
                 >
+                  {/* SMOOTH FLOATING CURSOR */}
+                  {config.smoothCursor && (
+                    <div 
+                      ref={cursorRef}
+                      className="absolute bg-yellow-400 w-[2px] rounded-full pointer-events-none z-10"
+                      style={{ 
+                        top: 0, left: 0, 
+                        transition: 'transform 0.1s cubic-bezier(0.2, 0, 0.2, 1), height 0.1s ease',
+                        boxShadow: '0 0 8px 1px rgba(250, 204, 21, 0.6)'
+                      }}
+                    />
+                  )}
+
                   {allTokens.map((line, visualLineIndex) => {
                     const logicalLineIndex = visualLineIndex; 
                     const mapValue = visualToLogicalMap[logicalLineIndex];
                     const isSpacerLine = mapValue === -1;
-
-                    // --- BUG FIX: Calculate Indentation ---
                     const rawLineContent = line.map(t => t.content).join("");
                     const leadingSpaceCount = rawLineContent.length - rawLineContent.trimStart().length;
-
-                    // Spotlight
                     const isLineActive = mapValue === userNewlineCount;
                     
                     if (isSpacerLine) {
-                        logicalCharIndex++; // Count the newline in GAME_CODE
+                        logicalCharIndex++; 
                         return (
                             <div 
                                 key={visualLineIndex} 
@@ -369,7 +502,6 @@ export default function TypingEngine({
                         const currentCharIndexInLine = charCountInLine++;
                         const isIndentation = currentCharIndexInLine < leadingSpaceCount;
 
-                        // --- BUG FIX: Only increment index if valid code ---
                         if (!isIndentation) {
                             logicalCharIndex++;
                         }
@@ -382,31 +514,36 @@ export default function TypingEngine({
                           );
                         }
 
-                        // Determine render state (Past, Current, Future)
                         const currentGlobalIndex = logicalCharIndex - 1; 
                         const userChar = userInput[currentGlobalIndex];
                         const isCursor = currentGlobalIndex === userInput.length;
                         
                         let displayClass = "";
                         let displayStyle = {};
+                        let isCorrect = false;
 
                         if (userChar !== undefined) {
                           if (userChar === char) {
+                            isCorrect = true;
                             displayClass = "text-green-400";
-                            displayStyle = { color: "#4ade80" };
+                            displayStyle = { color: "#4ade80", textShadow: '0 0 5px rgba(74, 222, 128, 0.5)' };
                           } else {
-                            displayClass = "text-red-500 bg-red-900/50";
+                            displayClass = "text-red-500 bg-red-900/50 rounded-sm";
                             displayStyle = { color: "#ef4444", backgroundColor: "rgba(127, 29, 29, 0.5)" };
                           }
                         } else {
                           displayStyle = { ...tokenProps.style };
                         }
 
+                        if (config.hitEffects && isCorrect && currentGlobalIndex === userInput.length - 1) {
+                           displayClass += " animate-pulse-scale";
+                        }
+
                         return (
                           <span 
                             key={`${key}-${charKey}`} 
-                            id={isCursor ? "active-cursor" : undefined} 
-                            className={`${displayClass} ${isCursor ? "border-l-2 border-yellow-400 animate-pulse" : ""}`}
+                            id={isCursor ? "active-cursor-anchor" : undefined} 
+                            className={`${displayClass} ${!config.smoothCursor && isCursor ? "border-l-2 border-yellow-400 animate-pulse" : ""}`}
                             style={displayStyle}
                           >
                             {char}
@@ -418,7 +555,7 @@ export default function TypingEngine({
                     // Newline Handling
                     let newlineElement = null;
                     const newlineIndex = logicalCharIndex;
-                    logicalCharIndex++; // Advance for the newline itself
+                    logicalCharIndex++;
 
                     if (newlineIndex < GAME_CODE.length) {
                        const userChar = userInput[newlineIndex];
@@ -427,8 +564,8 @@ export default function TypingEngine({
                        newlineElement = (
                          <span 
                            key="newline" 
-                           id={isCursor ? "active-cursor" : undefined}
-                           className={isCursor ? "border-l-2 border-yellow-400 animate-pulse" : ""}
+                           id={isCursor ? "active-cursor-anchor" : undefined}
+                           className={!config.smoothCursor && isCursor ? "border-l-2 border-yellow-400 animate-pulse" : ""}
                          >
                            {userChar !== undefined && userChar !== "\n" ? (
                              <span className="text-red-500 bg-red-900/50">⏎</span> 
@@ -461,7 +598,7 @@ export default function TypingEngine({
         </div>
       </div>
 
-      {/* RESULTS CARD */}
+      {/* RESULTS CARD (Same as before) */}
       {isFinished && finalStats && (
         <div className="bg-white/20 backdrop-blur-md rounded-lg p-6 border border-white/30 shadow-lg animate-in fade-in slide-in-from-bottom-4">
           <div className="flex items-center justify-between gap-8 flex-wrap">
@@ -514,6 +651,19 @@ export default function TypingEngine({
           </div>
         </div>
       )}
+      
+      {/* GLOBAL STYLE FOR PUMP EFFECT */}
+      <style jsx global>{`
+        @keyframes pump {
+          0% { transform: scale(1); filter: brightness(1); }
+          50% { transform: scale(1.4); filter: brightness(1.3); }
+          100% { transform: scale(1); filter: brightness(1); }
+        }
+        .animate-pulse-scale {
+          display: inline-block;
+          animation: pump 0.15s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
