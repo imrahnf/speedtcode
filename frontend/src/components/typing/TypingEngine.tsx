@@ -1,13 +1,13 @@
-// frontend/src/components/typing/TypingEngine.tsx
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Highlight, themes } from "prism-react-renderer";
+import confetti from "canvas-confetti";
 
-// 1. Define the Interface for the Parent Component (GamePage)
+// 1. Define Props Interface
 interface TypingEngineProps {
-  code: string; // The problem text from FastAPI
-  onFinish: (stats: GameStats) => void; // Callback when game ends
+  code: string; 
+  onFinish: (stats: GameStats) => void; 
 }
 
 interface GameStats {
@@ -18,7 +18,7 @@ interface GameStats {
 
 export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEngineProps) {
   const [userInput, setUserInput] = useState("");
-  const [startTime, setStartTime] = useState<number | null>(null); // Track time
+  const [startTime, setStartTime] = useState<number | null>(null);
   
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -26,26 +26,29 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
   const handleFocus = () => inputRef.current?.focus();
 
   // ----------------------------------------------------------------
-  // MODEL: PRE-PROCESSING
+  // 🧠 MODEL: PRE-PROCESSING
   // ----------------------------------------------------------------
   const visualToLogicalMap = useMemo(() => {
+    // Split by simple newline, but we handle \r in GAME_CODE below
     const lines = RAW_CODE.split("\n");
     let logicalIndex = 0;
     return lines.map((line) => {
       const isWhitespaceOnly = line.trim().length === 0;
       return isWhitespaceOnly ? -1 : logicalIndex++;
     });
-  }, [RAW_CODE]); // Dependency update: Re-calc if prop changes
+  }, [RAW_CODE]);
 
   const GAME_CODE = useMemo(() => {
-    return RAW_CODE.split("\n")
+    return RAW_CODE
+      .replace(/\r/g, "") // 🛡️ CRITICAL FIX: Remove Windows Carriage Returns
+      .split("\n")
       .filter(line => line.trim().length > 0)
       .map(line => line.trimStart())
       .join("\n");
   }, [RAW_CODE]);
 
   // ----------------------------------------------------------------
-  // Reset game when problem changes
+  // 🧹 STATE HYGIENE: Reset game when problem changes
   // ----------------------------------------------------------------
   useEffect(() => {
     setUserInput("");
@@ -54,19 +57,22 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
       inputRef.current.value = "";
       inputRef.current.focus();
     }
+    // Reset scroll to top
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+      scrollContainerRef.current.scrollLeft = 0;
+    }
   }, [RAW_CODE]); 
 
   // ----------------------------------------------------------------
-  // SCROLL LOGIC
+  // 🔄 SCROLL LOGIC (With Buffers)
   // ----------------------------------------------------------------
   useEffect(() => {
     const container = scrollContainerRef.current;
     const cursor = document.getElementById("active-cursor");
 
     if (container && cursor) {
-      // 1. VERTICAL: Keep using scrollIntoView because it handles "center" perfectly
-      // We use inline: "nearest" to let the browser do a baseline horizontal check,
-      // but we will override it immediately below.
+      // 1. VERTICAL: Center the active line
       cursor.scrollIntoView({
         behavior: "smooth",
         block: "center",
@@ -74,29 +80,22 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
       });
 
       // 2. HORIZONTAL: Manual "Lookahead" Logic
-      // We need to calculate if the cursor is too close to the edges.
       const containerRect = container.getBoundingClientRect();
       const cursorRect = cursor.getBoundingClientRect();
 
-      // Where is the cursor relative to the visible window of the container?
       const relativeLeft = cursorRect.left - containerRect.left;
       const containerWidth = containerRect.width;
       
-      // CONFIG: How much space (px) do you want between cursor and edge?
-      const RIGHT_BUFFER = 150; // Start scrolling when 150px from right
-      const LEFT_BUFFER = 100;  // Keep 100px context on the left
+      const RIGHT_BUFFER = 150; 
+      const LEFT_BUFFER = 100;  
 
-      // A. Too close to RIGHT edge? Scroll right.
+      // Scroll Right if too close to edge
       if (relativeLeft > containerWidth - RIGHT_BUFFER) {
-        // We calculate how much we exceeded the buffer and add that to scrollLeft
         const overflow = relativeLeft - (containerWidth - RIGHT_BUFFER);
         container.scrollLeft += overflow;
       }
 
-      // B. Too close to LEFT edge? Scroll left.
-      // This specifically fixes your "Newline" issue. 
-      // When you hit enter, 'relativeLeft' drops near 0. This condition catches it 
-      // and snaps the view back to the left.
+      // Scroll Left (Snap back) on new lines
       if (relativeLeft < LEFT_BUFFER) {
         const underflow = LEFT_BUFFER - relativeLeft;
         container.scrollLeft = Math.max(0, container.scrollLeft - underflow);
@@ -104,15 +103,8 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
     }
   }, [userInput]);
 
-  // Reset scroll position when problem changes
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0;
-    }
-  }, [RAW_CODE]);
-
   // ----------------------------------------------------------------
-  // INPUT LOGIC
+  // ⌨️ INPUT LOGIC
   // ----------------------------------------------------------------
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -131,7 +123,7 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
     // 2. STOP OVERFLOW
     if (newValue.length > GAME_CODE.length) return;
 
-    // 3. STRICT GATES (Your Logic)
+    // 3. STRICT GATES
     const currentCharIndex = userInput.length;
     const expectedChar = GAME_CODE[currentCharIndex];
     const typedChar = newValue.slice(-1);
@@ -142,21 +134,30 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
     // 4. UPDATE STATE
     setUserInput(newValue);
 
-    // 5. CHECK WIN CONDITION 
+    // 5. CHECK WIN CONDITION 🏆
     if (newValue === GAME_CODE) {
       const endTime = Date.now();
       const timeMs = endTime - (startTime || endTime);
       const minutes = timeMs / 60000;
+      const wpm = Math.round((GAME_CODE.length / 5) / (minutes || 0.001));
       
-      // Standard WPM Formula: (Total Chars / 5) / Minutes
-      const wpm = Math.round((GAME_CODE.length / 5) / (minutes || 0.001)); // avoid div/0
-      
-      // Send stats back to Parent
-      onFinish({
-        wpm,
-        accuracy: 100, // Strict mode = 100% accuracy logic
-        timeMs
+      // 🎉 TRIGGER CONFETTI
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        zIndex: 9999, // Force on top
+        colors: ['#4ade80', '#ffffff', '#fbbf24']
       });
+      
+      // ⏳ WAIT 1 SECOND before showing results
+      setTimeout(() => {
+        onFinish({
+          wpm,
+          accuracy: 100,
+          timeMs
+        });
+      }, 1000);
     }
   };
 
@@ -181,13 +182,13 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
 
       <div 
         ref={scrollContainerRef} 
-        className="overflow-auto max-h-[60vh] bg-[#DDFFF7] px-8 py-12 scrollbar-hide"
+        className="relative overflow-auto max-h-[60vh] bg-[#1e1e1e] px-8 py-32 scrollbar-hide"
         style={{
           scrollbarWidth: "none",
           msOverflowStyle: "none"
         }}
       >
-        <Highlight theme={themes.vsLight} code={RAW_CODE} language="python">
+        <Highlight theme={themes.vsDark} code={RAW_CODE} language="python">
           {({ className, style, tokens, getLineProps, getTokenProps }) => {
             
             let logicalCharIndex = 0;
@@ -266,6 +267,7 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
                     });
                   });
 
+                  // Newline Handling
                   let newlineElement = null;
                   const isLastLogicalLine = logicalCharIndex >= GAME_CODE.length;
 
