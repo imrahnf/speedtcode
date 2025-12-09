@@ -147,70 +147,72 @@ def get_leaderboard(problem_id: str, language: str, top: int = 10):
 # submit game results with validation
 @app.post("/api/results")
 def submit_results(result: ResultSubmission):
-    # ========== SERVER-SIDE VALIDATION ==========
-    
-    # validate problem exists
+    # 1. INTEGRITY CHECKS (Does the problem exist?)
     problem = PROBLEMS_DB.get(result.problemId)
     if not problem:
         raise HTTPException(status_code=400, detail=f"Problem {result.problemId} not found")
     
-    # validate language is available for this problem
     if result.language not in problem["languages"]:
         raise HTTPException(
             status_code=400, 
-            detail=f"Language '{result.language}' not available for problem {result.problemId}"
+            detail=f"Language '{result.language}' not available"
         )
     
-    # validate rawLength matches the target code length
+    # 2. MATCH CHECK (Did they type the whole thing?)
+    # We rely on rawLength to ensure they didn't just type 5 chars and hit submit.
     target_code = problem["content"][result.language]
     expected_length = len(target_code)
+    
     if result.rawLength != expected_length:
         raise HTTPException(
             status_code=400, 
-            detail=f"Code length mismatch: expected {expected_length}, got {result.rawLength}"
+            detail=f"Length mismatch: Server expects {expected_length}, got {result.rawLength}"
         )
     
-    # validate accuracy is between 0 and 100
+    # 3. BOUNDARY CHECKS (Are numbers within data limits?)
+    # Relaxed lower bounds. 0 accuracy is valid (just terrible).
     if not (0 <= result.accuracy <= 100):
-        raise HTTPException(status_code=400, detail="Accuracy must be between 0 and 100")
-    
-    # validate WPM is reasonable (sanity check)
-    # WPM formula: (characters / 5) / (minutes)
-    # Minimum realistic: 1 WPM, Maximum realistic: 300 WPM
-    if not (1 <= result.wpm <= 300):
-        raise HTTPException(status_code=400, detail=f"WPM {result.wpm} is unrealistic (expected 1-300)")
-    
-    # validate time is reasonable
-    # For rawLength characters at claimed WPM: timeMs = (rawLength / 5) / (wpm / 60000)
-    expected_time_ms = (result.rawLength / 5) / (result.wpm / 60000)
-    time_tolerance = 0.3  # Allow 30% variance for network/UI delays
-    
-    if result.timeMs < expected_time_ms * (1 - time_tolerance):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Time mismatch: expected ~{int(expected_time_ms)}ms at {result.wpm} WPM, got {result.timeMs}ms. "
-                   f"This suggests either: (1) accuracy is too low, or (2) you typed much fewer characters than submitted."
-        )
-    
-    # VALIDATION PASSED
-    print(
-        f"✓ Valid submission: {result.wpm} WPM on {problem['title']} ({result.language}), "
-        f"Accuracy: {result.accuracy}%, Time: {result.timeMs}ms"
-    )
+        raise HTTPException(status_code=400, detail="Accuracy must be 0-100")
 
-    # calculate submission's rank in the leaderboard
-    user_rank = random.randint(1, 100) # offload to service soon
+    # 4. ANTI-CHEAT / PHYSICS CHECK
+    # We only block SUPERHUMAN speeds. 
+    # World record typing is ~220 WPM. Let's cap at 350 to be safe.
+    if result.wpm > 350:
+         raise HTTPException(status_code=400, detail="WPM exceeds human limitations.")
+
+    # 5. CONSISTENCY CHECK (The 'Magic' Formula)
+    # WPM = (Chars / 5) / (Time_Minutes)
+    # We calculate the THEORETICAL MAX WPM for the time they submitted.
+    # If their submitted WPM is significantly HIGHER than what is mathematically 
+    # possible given the time they took, they are lying.
+    
+    # Example: They claim 100 WPM but timeMs was 10 seconds for 1000 chars.
+    
+    minutes = result.timeMs / 60000
+    if minutes <= 0:
+        raise HTTPException(status_code=400, detail="Time cannot be 0")
+
+    # This is the WPM if they typed perfectly with zero pauses
+    calculated_wpm = (result.rawLength / 5) / minutes
+    
+    # Buffer allows for network latency or slight calc diffs in frontend
+    # We allow Submitted WPM to be at most 10% higher than Calculated WPM
+    # (It's usually lower because of backspaces/pauses)
+    buffer = 1.2 
+
+    if result.wpm > (calculated_wpm * buffer):
+         raise HTTPException(
+            status_code=400, 
+            detail=f"Cheating detected: WPM {result.wpm} is impossible given time {result.timeMs}ms"
+        )
+
+    # --- SUCCESS ---
+    
+    # Calculate rank (Mock logic)
+    user_rank = random.randint(1, 100) 
 
     return {
         "status": "ok",
-        "message": "Result validated and queued for storage",
-        "received": {
-            "wpm": result.wpm,
-            "accuracy": result.accuracy,
-            "timeMs": result.timeMs,
-            "problemId": result.problemId,
-            "rawLength": result.rawLength,
-            "language": result.language,
-        },
-        "rank" : user_rank
+        "rank": user_rank,
+        "received": result.dict()
     }

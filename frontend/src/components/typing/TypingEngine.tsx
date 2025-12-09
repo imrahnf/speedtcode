@@ -212,11 +212,22 @@ export default function TypingEngine({
 
   // --- RENDER PREP ---
   const userNewlineCount = (userInput.match(/\n/g) || []).length;
-  
+  const totalCodeLines = visualToLogicalMap.length;
+
+  // LOGIC FIX 1: Determine if we actually need to scroll
+  // We only enable sliding/masking if the code is longer than the display limit
+  const isLongFile = displayLines !== 999 && totalCodeLines > displayLines;
+
   // Center Calculation: -(ActiveLine * LineHeight) + (ContainerHeight/2 - LineHeight/2)
-  const containerHeight = displayLines * LINE_HEIGHT_PX;
+  const containerHeight = isLongFile ? displayLines * LINE_HEIGHT_PX : totalCodeLines * LINE_HEIGHT_PX;
   const centerYOffset = (containerHeight / 2) - (LINE_HEIGHT_PX / 2);
-  const translateY = -(userNewlineCount * LINE_HEIGHT_PX) + centerYOffset;
+
+  // LOGIC FIX 2: TranslateY
+  // If we are sliding (isLongFile), we allow the transform to push positive (down) 
+  // so the first line sits in the "Sweet Spot" (center) and isn't hidden by the mask.
+  const translateY = isLongFile 
+    ? -(userNewlineCount * LINE_HEIGHT_PX) + centerYOffset
+    : 0; // If short file, no transform needed
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-4">
@@ -246,20 +257,19 @@ export default function TypingEngine({
       <div className="flex items-center gap-3 px-4 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/30 text-gray-800 font-mono text-xs shadow-lg">
         <span className="opacity-70 uppercase tracking-wider font-semibold">Lines Visible:</span>
         <div className="flex gap-2">
-          {[1, 5, 10, 20, "All"].map((lineCount) => {
-            const value = lineCount === "All" ? 999 : (lineCount as number); 
+          {[1, 3, 5, 10].map((lineCount) => {
             return (
               <button
                 key={lineCount}
                 disabled={startTime !== null}
                 onClick={() => {
-                  setDisplayLines(value);
-                  onMaxLinesChange?.(value);
+                  setDisplayLines(lineCount);
+                  onMaxLinesChange?.(lineCount);
                 }}
                 className={`px-2 py-1 rounded border transition-all text-xs font-semibold ${
                   startTime !== null
                     ? "bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed opacity-50"
-                    : displayLines === value
+                    : displayLines === lineCount
                       ? "bg-black text-white border-black"
                       : "bg-white text-gray-700 border-gray-300 hover:border-black"
                 }`}
@@ -274,7 +284,7 @@ export default function TypingEngine({
       {/* GAME AREA */}
       <div 
         className="relative bg-white/30 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden font-mono border border-white/40"
-        style={{ height: displayLines === 999 ? 'auto' : `${containerHeight}px`, transition: 'height 0.3s ease' }}
+        style={{ height: `${containerHeight}px`, transition: 'height 0.3s ease' }}
         onClick={handleFocus}
       >
         <textarea
@@ -293,8 +303,9 @@ export default function TypingEngine({
           ref={scrollContainerRef} 
           className="relative w-full h-full overflow-hidden"
           style={{
-             maskImage: displayLines !== 999 ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none',
-             WebkitMaskImage: displayLines !== 999 ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none'
+             // Only apply mask if the file is longer than the view window
+             maskImage: isLongFile ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none',
+             WebkitMaskImage: isLongFile ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none'
           }}
         >
           <Highlight theme={themes.vsLight} code={RAW_CODE} language={language || "python"}>
@@ -314,7 +325,7 @@ export default function TypingEngine({
                         fontWeight: 600,
                         fontSize: `${FONT_SIZE_PX}px`,
                         // SLIDING MAGIC
-                        transform: displayLines !== 999 ? `translateY(${translateY}px)` : 'none',
+                        transform: `translateY(${translateY}px)`,
                         transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)', 
                         padding: '0 2rem'
                     }}
