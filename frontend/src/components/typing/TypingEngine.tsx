@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import confetti from "canvas-confetti";
-import { Timer, Zap, Target } from "lucide-react"; // Make sure you have lucide-react installed
+import { Timer, Zap, Target, Trophy } from "lucide-react"; // Make sure you have lucide-react installed
 
 interface TypingEngineProps {
   code: string; 
@@ -25,6 +25,8 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
   const [currentWpm, setCurrentWpm] = useState(0);
   const [currentAccuracy, setCurrentAccuracy] = useState(100);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [finalStats, setFinalStats] = useState<GameStats | null>(null);
+  const [userRank, setUserRank] = useState<number>(1); // Placeholder rank
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -178,24 +180,34 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
       setCurrentAccuracy(liveStats.accuracy);
     }
 
-    // 6. CHECK WIN CONDITION (LENGTH CHECK) 🏆
+    // 6. CHECK WIN CONDITION (LENGTH CHECK) 
     if (newValue.length === GAME_CODE.length) {
       setIsFinished(true);
-      const finalStats = calculateStats(newValue, Date.now());
+      const stats = calculateStats(newValue, Date.now());
+      setFinalStats(stats);
       
-      // 🎉 FIRE CONFETTI
+      //  CONFETTI (softer, balanced burst)
+      const confettiDefaults = {
+        spread: 130,
+        startVelocity: 55,
+        ticks: 220,
+        gravity: 0.7,
+        scalar: 1.5, // slightly larger/thicker pieces
+        zIndex: 9999,
+      };
+
       confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        zIndex: 9999, 
-        colors: ['#4ade80', '#ffffff', '#fbbf24']
+        ...confettiDefaults,
+        particleCount: 140,
+        origin: { x: 0.02, y: 0.98 }, // bottom-left edge
       });
-      
-      // ⏳ WAIT 1 SECOND then call Parent
-      setTimeout(() => {
-        onFinish(finalStats);
-      }, 1000);
+
+      confetti({
+        ...confettiDefaults,
+        particleCount: 140,
+        origin: { x: 0.98, y: 0.98 }, // bottom-right edge
+      });
+
     }
   };
 
@@ -207,28 +219,28 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-4">
       
       {/* 📊 LIVE HUD */}
-      <div className="flex justify-between items-center bg-[#1e1e1e] p-4 rounded-lg border border-gray-800 text-gray-300 font-mono text-sm">
+      <div className="flex justify-between items-center bg-white/20 backdrop-blur-md p-4 rounded-lg border border-white/30 text-gray-800 font-mono text-sm shadow-lg">
         <div className="flex gap-6">
           <div className="flex items-center gap-2">
-            <Timer className="w-4 h-4 text-blue-400" />
+            <Timer className="w-4 h-4 text-blue-600" />
             <span>{(elapsedTime / 1000).toFixed(1)}s</span>
           </div>
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-yellow-400" />
+            <Zap className="w-4 h-4 text-yellow-600" />
             <span>{currentWpm} WPM</span>
           </div>
           <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-green-400" />
+            <Target className="w-4 h-4 text-teal-600" />
             <span>{currentAccuracy}%</span>
           </div>
         </div>
-        <div className="opacity-50">
+        <div className="opacity-70">
           {userInput.length} / {GAME_CODE.length} chars
         </div>
       </div>
 
       <div 
-        className="relative bg-[#0a0a0a] rounded-xl shadow-2xl overflow-hidden font-mono text-xl leading-relaxed border border-gray-800"
+        className="relative bg-white/30 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden font-mono text-xl leading-relaxed border border-white/40"
         onClick={handleFocus}
       >
         <textarea
@@ -244,13 +256,13 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
 
         <div 
           ref={scrollContainerRef} 
-          className="relative overflow-auto max-h-[60vh] bg-[#1e1e1e] px-8 py-32 scrollbar-hide"
+          className="relative overflow-auto max-h-[60vh] bg-white/20 px-8 py-12 scrollbar-hide font-semibold"
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none"
           }}
         >
-          <Highlight theme={themes.vsDark} code={RAW_CODE} language="python">
+          <Highlight theme={themes.vsLight} code={RAW_CODE} language="python">
             {({ className, style, tokens, getLineProps, getTokenProps }) => {
               
               let logicalCharIndex = 0;
@@ -374,6 +386,63 @@ export default function TypingEngine({ code: RAW_CODE = "", onFinish }: TypingEn
           </Highlight>
         </div>
       </div>
+
+      {/* RESULTS CARD */}
+      {isFinished && finalStats && (
+        <div className="bg-white/20 backdrop-blur-md rounded-lg p-4 border border-white/30 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-6 font-mono text-sm font-bold text-gray-800">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-yellow-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider">WPM</div>
+                  <div className="text-lg">{finalStats.wpm}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-green-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider">Accuracy</div>
+                  <div className="text-lg">{finalStats.accuracy}%</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Timer className="w-5 h-5 text-blue-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider">Time</div>
+                  <div className="text-lg">{(finalStats.timeMs / 1000).toFixed(1)}s</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 border-l border-white/40 pl-6">
+                <Trophy className="w-5 h-5 text-teal-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider">Rank</div>
+                  <div className="text-lg">#{userRank}</div>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setIsFinished(false);
+                setFinalStats(null);
+                setUserInput("");
+                setStartTime(null);
+                setElapsedTime(0);
+                setCurrentWpm(0);
+                setCurrentAccuracy(100);
+                if (inputRef.current) inputRef.current.value = "";
+                if (scrollContainerRef.current) {
+                  scrollContainerRef.current.scrollTop = 0;
+                  scrollContainerRef.current.scrollLeft = 0;
+                }
+              }}
+              className="px-6 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-all text-sm whitespace-nowrap"
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
