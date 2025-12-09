@@ -1,30 +1,131 @@
 // frontend/src/app/page.js
 "use client";
-import TypingEngine from "@/components/typing/TypingEngine";
 
-const MOCK_CODE = `print("Hello, Speed(t)Code!")
-'''
-Speed(t)Code is an advanced typing test platform
-You can test your typing speed with code snippets in various programming languages.
-'''
-def fibonacci(n):
-    a, b = 0, 1
-    for _ in range(n):
-        yield a
-        a, b = b, a + b
-        
-for num in fibonacci(10):
-    print(num)
-`;
+import React, { useState, useEffect } from "react";
+import { Highlight, themes } from "prism-react-renderer";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { FaGoogle, FaGithub } from "react-icons/fa";
+import { Play, Terminal } from "lucide-react";
 
-export default function Home() {
+export default function LandingPage() {
+  const router = useRouter();
+  const [text, setText] = useState("");
+  const fullText = 'print("Hello, Speed(t)Code!")';
+
+  // Typewriter effect for the title
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index <= fullText.length) {
+        setText(fullText.slice(0, index));
+        index++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <main className="min-h-screen flex items-center justify-center  bg-[#DDFFF7] text-black font-sans">
-      {/* You MUST pass the 'code' prop */}
-      <TypingEngine 
-        code={MOCK_CODE} 
-        onFinish={(stats) => console.log(stats)} 
-      />
-    </main>
+    <div className="min-h-screen bg-[#DDFFF7] text-black overflow-hidden relative flex flex-col items-center justify-center">
+      
+      {/* Background Gradients */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+        <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+      </div>
+
+      {/* Main Content */}
+      <div className="z-10 flex flex-col items-center space-y-12 w-full max-w-4xl px-4">
+        
+        {/* Animated Title */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center space-y-6"
+        >
+          <div className="inline-block p-6 rounded-xl bg-white/30 backdrop-blur-md border border-white/50 shadow-xl transform -rotate-1">
+            <Highlight theme={themes.vsLight} code={text} language="python">
+              {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                <code className={`font-mono text-2xl md:text-4xl lg:text-5xl whitespace-nowrap ${className}`} style={{ ...style, backgroundColor: "transparent" }}>
+                  {tokens.map((line, i) => (
+                    <React.Fragment key={i}>
+                      {line.map((token, key) => (
+                        <span key={key} {...getTokenProps({ token })} />
+                      ))}
+                    </React.Fragment>
+                  ))}
+                  <span className="animate-pulse border-l-2 border-gray-800 ml-1 h-8 inline-block align-middle"></span>
+                </code>
+              )}
+            </Highlight>
+          </div>
+          <p className="text-gray-700 text-lg md:text-xl max-w-2xl mx-auto mt-4 font-medium">
+            Master the art of coding speed. Practice real syntax, compete with friends, and climb the global leaderboard.
+          </p>
+        </motion.div>
+
+        {/* Action Buttons */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+          className="flex flex-col md:flex-row gap-6 w-full max-w-md"
+        >
+          <button 
+            onClick={() => router.push("/play/1")}
+            className="group relative flex-1 flex items-center justify-center gap-3 px-8 py-4 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-all transform hover:scale-105 shadow-lg shadow-teal-500/30"
+          >
+            <Play className="w-5 h-5 fill-white" />
+            <span>Play Now</span>
+            <div className="absolute inset-0 rounded-xl ring-2 ring-white/20 group-hover:ring-white/40 animate-pulse"></div>
+          </button>
+        </motion.div>
+
+        {/* Auth Options */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1, duration: 0.8 }}
+          className="flex flex-col items-center space-y-4 w-full max-w-xs"
+        >
+          <div className="flex items-center w-full gap-4">
+            <div className="h-px bg-gray-400 flex-1"></div>
+            <span className="text-gray-500 text-sm uppercase tracking-wider font-semibold">or sign in</span>
+            <div className="h-px bg-gray-400 flex-1"></div>
+          </div>
+
+          <div className="flex gap-4 w-full">
+            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all text-black shadow-sm">
+              <FaGoogle className="w-5 h-5" />
+            </button>
+            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all text-black shadow-sm">
+              <FaGithub className="w-5 h-5" />
+            </button>
+          </div>
+        </motion.div>
+
+      </div>
+
+      {/* Footer Stats */}
+      <motion.div 
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.5, duration: 0.8 }}
+        className="absolute bottom-8 flex gap-12 text-gray-600 font-mono text-sm font-medium"
+      >
+        <div className="flex items-center gap-2">
+          <Terminal className="w-4 h-4" />
+          <span>Python • JS • C++</span>
+        </div>
+        <div>
+          <span className="text-green-600">●</span> 1,240 Online
+        </div>
+      </motion.div>
+
+    </div>
   );
 }
