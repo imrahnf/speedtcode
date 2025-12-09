@@ -1,7 +1,7 @@
 // frontend/src/app/play/[id]/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation"; // 
 import TypingEngine from "@/components/typing/TypingEngine";
@@ -18,16 +18,59 @@ export default function DynamicGamePage() {
   const params = useParams();
   const problemId = params.id as string; 
   const router = useRouter();
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("python");
+  const [maxLinesVisible, setMaxLinesVisible] = useState<number>(10);
 
   // SWR key changes automatically when problemId changes
   const { data: problem, error, isLoading } = useSWR(
     `http://localhost:8000/api/problems/${problemId}`,
     fetcher,
-    { revalidateOnFocus: false }
+    { 
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      revalidateOnReconnect: false
+    }
   );
 
-  const [gameState, setGameState] = useState<"playing" | "finished">("playing");
-  const [stats, setStats] = useState<any>(null);
+  useEffect(() => {
+    if (problem?.languages?.length) {
+      setSelectedLanguage(problem.languages[0]);
+    }
+  }, [problem]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("maxLinesVisible");
+    if (stored) setMaxLinesVisible(parseInt(stored, 10));
+  }, []);
+
+  const handleMaxLinesChange = (lines: number) => {
+    setMaxLinesVisible(lines);
+    localStorage.setItem("maxLinesVisible", lines.toString());
+  };
+
+  const handleSubmitStats = useCallback(async (payload: any) => {
+    // TODO: inject auth token when available
+    // const token = await getAccessToken();
+    const payloadWithLanguage = {
+      ...payload,
+      language: payload.language || selectedLanguage,
+    };
+    try {
+      const res = await fetch("http://localhost:8000/api/results", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payloadWithLanguage),
+      });
+      console.log("Submitted stats", { status: res.status, ok: res.ok });
+      const data = await res.json();
+      return data.rank;
+    } catch (err) {
+      console.error("Failed to submit results", err);
+    }
+  }, [selectedLanguage]);
 
   // Loading State
   // While SWR is fetching data, show spinner
@@ -61,36 +104,44 @@ export default function DynamicGamePage() {
         <button onClick={() => router.push("/")} className="flex items-center gap-2 text-gray-600 hover:text-black transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
-        <h1 className="font-bold text-lg">{problem.title}</h1>
+        <div className="flex flex-col items-center gap-2">
+          <h1 className="font-bold text-lg">{problem.title}</h1>
+          <div className="flex gap-2">
+            {(problem.languages || [selectedLanguage]).map((lang: string) => {
+              const labelMap: Record<string, string> = {
+                python: "Python",
+                javascript: "JavaScript",
+                cpp: "C++",
+              };
+              return (
+                <button
+                  key={lang}
+                  onClick={() => setSelectedLanguage(lang)}
+                  className={`px-3 py-1 rounded-full text-sm border transition-all ${selectedLanguage === lang ? "bg-black text-white border-black" : "bg-white text-gray-700 border-gray-300 hover:border-black"}`}
+                >
+                  {labelMap[lang] || lang}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="w-16"></div>
       </div>
 
       {/* Game Area */}
-      <div className="relative z-10 flex flex-col items-center pt-12">
-        {gameState === "playing" ? (
-          <div className="w-full max-w-4xl">
-            {/*THE ENGINE: We feed it the data we just fetched */}
-            <TypingEngine 
-              code={problem.content} 
-              onFinish={(results) => {
-                setStats(results);
-                setGameState("finished");
-              }} 
-            />
-          </div>
-        ) : (
-          /* Results (Simple version) */
-          <div className="text-center space-y-6 animate-in zoom-in">
-            <Trophy className="w-16 h-16 text-yellow-400 mx-auto" />
-            <h2 className="text-6xl font-black">{stats.wpm} WPM</h2>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-8 py-3 bg-white text-black font-bold rounded hover:bg-gray-200 flex items-center gap-2 mx-auto"
-            >
-              <RefreshCw className="w-4 h-4" /> Play Again
-            </button>
-          </div>
-        )}
+      <div className="relative z-10 flex flex-col items-center pt-12 pb-12">
+        <div className="w-full max-w-4xl">
+          {/*THE ENGINE: We feed it the data we just fetched */}
+          <TypingEngine 
+            code={typeof problem.content === "object" ? problem.content[selectedLanguage] : problem.content}
+            problemId={problem.id}
+            language={selectedLanguage}
+            maxLinesVisible={maxLinesVisible}
+            onMaxLinesChange={handleMaxLinesChange}
+            onFinish={() => {}}
+            onSubmitStats={handleSubmitStats}
+          />
+        </div>
       </div>
     </div>
   );
