@@ -1,8 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 import random
+import uuid
+import json
+import asyncio
+import time
+from datetime import datetime
 
 # TODO: decouple validation, submission, db, models
 # TODO: add db, auth, cache
@@ -11,11 +16,250 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000","http://192.168.0.100:3000"],
+    allow_origins=["http://localhost:3000","http://192.168.0.100:3000", "http://192.168.0.125:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- LOBBY MANAGER ---
+class LobbyManager:
+    def __init__(self):
+        self.lobbies: Dict[str, dict] = {}
+
+    def create_lobby(self, host_id: str, problem_id: str, language: str):
+        lobby_id = str(uuid.uuid4())[:6].upper()
+        self.lobbies[lobby_id] = {
+            "id": lobby_id,
+            "host_id": host_id,
+            "problem_id": problem_id,
+            "language": language,
+            "status": "waiting", # waiting, racing, finished
+            "participants": {}, # {user_id: {username, ready, progress, wpm, rank}}
+            "connections": {}, # {user_id: websocket}
+            "history": [], # List of past match results
+            "round_number": 1,
+            "created_at": datetime.now()
+        }
+        return lobby_id
+
+    async def connect(self, websocket: WebSocket, lobby_id: str, user_id: str, username: str):
+        await websocket.accept()
+        lobby = self.lobbies.get(lobby_id)
+        if not lobby:
+            await websocket.close(code=4000, reason="Lobby not found")
+            return
+
+        lobby["connections"][user_id] = websocket
+        # Always update username if they rejoin or join
+        if user_id not in lobby["participants"]:
+            lobby["participants"][user_id] = {
+                "username": username,
+                "ready": False,
+                "progress": 0,
+                "wpm": 0,
+                "rank": None,
+                "finished": False,
+                "connected": True
+            }
+        else:
+            # Update username just in case
+            lobby["participants"][user_id]["username"] = username
+            lobby["participants"][user_id]["connected"] = True
+        
+        await self.broadcast_state(lobby_id)
+
+    async def disconnect(self, lobby_id: str, user_id: str):
+        lobby = self.lobbies.get(lobby_id)
+        if not lobby: return
+
+        if user_id in lobby["connections"]:
+            del lobby["connections"][user_id]
+
+        # If host leaves, close the lobby for everyone
+        if user_id == lobby["host_id"]:
+            print(f"Host {user_id} left lobby {lobby_id}. Closing lobby.")
+            close_msg = {"type": "LOBBY_CLOSED"}
+            # Notify all remaining connections
+            for ws in list(lobby["connections"].values()):
+                try:
+                    await ws.send_json(close_msg)
+                    await ws.close()
+                except:
+                    pass
+            # Delete the lobby
+            if lobby_id in self.lobbies:
+                del self.lobbies[lobby_id]
+            return
+
+        # If normal user leaves
+        if lobby["status"] == "waiting":
+            if user_id in lobby["participants"]:
+                del lobby["participants"][user_id]
+        else:
+            # If racing or finished, mark as disconnected
+            if user_id in lobby["participants"]:
+                lobby["participants"][user_id]["connected"] = False
+        
+        # Always broadcast state after a disconnect (unless lobby is gone)
+        await self.broadcast_state(lobby_id)
+
+    async def broadcast_state(self, lobby_id: str):
+        lobby = self.lobbies.get(lobby_id)
+        if not lobby: return
+
+        state = {
+            "type": "STATE_UPDATE",
+            "status": lobby["status"],
+            "participants": [
+                {"id": uid, **p} for uid, p in lobby["participants"].items()
+            ],
+            "problemId": lobby["problem_id"],
+            "language": lobby["language"],
+            "history": lobby["history"],
+            "roundNumber": lobby["round_number"],
+            "start_time": lobby.get("start_time")
+        }
+        
+        to_remove = []
+        for uid, ws in lobby["connections"].items():
+            try:
+                await ws.send_json(state)
+            except:
+                to_remove.append(uid)
+        
+        for uid in to_remove:
+            await self.disconnect(lobby_id, uid)
+
+    async def start_race(self, lobby_id: str, user_id: str):
+        lobby = self.lobbies.get(lobby_id)
+        if lobby and lobby["host_id"] == user_id and lobby["status"] == "waiting":
+            # Start countdown
+            lobby["status"] = "starting"
+            lobby["start_time"] = int(time.time() * 1000) + 3000 # 3 seconds from now
+            await self.broadcast_state(lobby_id)
+            
+            asyncio.create_task(self._run_countdown(lobby_id))
+
+    async def _run_countdown(self, lobby_id: str):
+        await asyncio.sleep(3)
+        lobby = self.lobbies.get(lobby_id)
+        if lobby and lobby["status"] == "starting":
+            lobby["status"] = "racing"
+            lobby["start_time"] = int(time.time() * 1000)
+            await self.broadcast_state(lobby_id)
+
+    async def kick_participant(self, lobby_id: str, host_id: str, target_user_id: str):
+        lobby = self.lobbies.get(lobby_id)
+        if not lobby or lobby["host_id"] != host_id: return
+        
+        if target_user_id in lobby["participants"]:
+            # Close connection if active
+            if target_user_id in lobby["connections"]:
+                ws = lobby["connections"][target_user_id]
+                try:
+                    await ws.send_json({"type": "KICKED"})
+                    await ws.close()
+                except:
+                    pass
+                del lobby["connections"][target_user_id]
+            
+            # Remove from participants
+            del lobby["participants"][target_user_id]
+            await self.broadcast_state(lobby_id)
+
+    async def force_end_race(self, lobby_id: str, user_id: str):
+        lobby = self.lobbies.get(lobby_id)
+        if lobby and lobby["host_id"] == user_id and lobby["status"] == "racing":
+            # Force finish for everyone who hasn't finished
+            for uid, p in lobby["participants"].items():
+                if not p["finished"]:
+                    p["finished"] = True
+                    # Keep existing stats or set to 0/DNF if needed
+            
+            await self.broadcast_state(lobby_id)
+
+    async def update_settings(self, lobby_id: str, user_id: str, problem_id: str, language: str):
+        lobby = self.lobbies.get(lobby_id)
+        if lobby and lobby["host_id"] == user_id and lobby["status"] == "waiting":
+            if problem_id:
+                lobby["problem_id"] = problem_id
+            if language:
+                lobby["language"] = language
+            await self.broadcast_state(lobby_id)
+
+    async def update_progress(self, lobby_id: str, user_id: str, progress: int, wpm: int):
+        lobby = self.lobbies.get(lobby_id)
+        if lobby and lobby["status"] == "racing":
+            p = lobby["participants"].get(user_id)
+            if p:
+                p["progress"] = progress
+                p["wpm"] = wpm
+                await self.broadcast_state(lobby_id)
+
+    async def finish_race(self, lobby_id: str, user_id: str, stats: dict):
+        lobby = self.lobbies.get(lobby_id)
+        if lobby and lobby["status"] == "racing":
+            p = lobby["participants"].get(user_id)
+            if p and not p["finished"]:
+                p["finished"] = True
+                p["wpm"] = stats["wpm"]
+                p["accuracy"] = stats["accuracy"]
+                p["timeMs"] = stats["timeMs"]
+                
+                # Calculate rank
+                finished_count = sum(1 for u in lobby["participants"].values() if u["finished"])
+                p["rank"] = finished_count
+                
+                await self.broadcast_state(lobby_id)
+
+    async def reset_round(self, lobby_id: str, user_id: str, new_problem_id: str = None, new_language: str = None):
+        lobby = self.lobbies.get(lobby_id)
+        if not lobby or lobby["host_id"] != user_id: return
+
+        # Archive current results
+        results = []
+        for uid, p in lobby["participants"].items():
+            if p["finished"]:
+                results.append({
+                    "username": p["username"],
+                    "rank": p["rank"],
+                    "wpm": p["wpm"],
+                    "accuracy": p.get("accuracy", 0),
+                    "timeMs": p.get("timeMs", 0)
+                })
+        
+        # Sort by rank
+        results.sort(key=lambda x: x["rank"] if x["rank"] else 999)
+
+        lobby["history"].append({
+            "round": lobby["round_number"],
+            "problemId": lobby["problem_id"],
+            "language": lobby["language"],
+            "results": results,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        # Reset for next round
+        lobby["round_number"] += 1
+        lobby["status"] = "waiting"
+        
+        if new_problem_id:
+            lobby["problem_id"] = new_problem_id
+        if new_language:
+            lobby["language"] = new_language
+
+        for uid, p in lobby["participants"].items():
+            p["ready"] = False
+            p["progress"] = 0
+            p["wpm"] = 0
+            p["rank"] = None
+            p["finished"] = False
+            # Keep 'connected' status as is
+
+        await self.broadcast_state(lobby_id)
+
+lobby_manager = LobbyManager()
 
 # placeholder
 PROBLEMS_DB = {
@@ -111,10 +355,82 @@ class ResultSubmission(BaseModel):
     rawLength: int
     language: str
 
+class LobbyCreate(BaseModel):
+    hostId: str
+    problemId: str
+    language: str
+
 # health check
 @app.get("/")
 def read_root():
     return {"status": "active", "message": "Speed(t)Code API is running"}
+
+# --- LOBBY ENDPOINTS ---
+
+@app.post("/api/lobbies")
+def create_lobby(data: LobbyCreate):
+    if data.problemId not in PROBLEMS_DB:
+        raise HTTPException(400, "Invalid problem ID")
+    
+    lobby_id = lobby_manager.create_lobby(data.hostId, data.problemId, data.language)
+    return {"lobbyId": lobby_id}
+
+@app.get("/api/lobbies/{lobby_id}")
+def get_lobby(lobby_id: str):
+    lobby = lobby_manager.lobbies.get(lobby_id)
+    if not lobby:
+        raise HTTPException(404, "Lobby not found")
+    
+    # Return public info
+    return {
+        "id": lobby["id"],
+        "hostId": lobby["host_id"],
+        "problemId": lobby["problem_id"],
+        "language": lobby["language"],
+        "status": lobby["status"],
+        "participants": len(lobby["participants"])
+    }
+
+@app.websocket("/ws/lobby/{lobby_id}/{user_id}/{username}")
+async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, username: str):
+    await lobby_manager.connect(websocket, lobby_id, user_id, username)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            
+            if data["type"] == "START_RACE":
+                await lobby_manager.start_race(lobby_id, user_id)
+            
+            elif data["type"] == "UPDATE_PROGRESS":
+                await lobby_manager.update_progress(lobby_id, user_id, data["progress"], data["wpm"])
+            
+            elif data["type"] == "FINISH_RACE":
+                await lobby_manager.finish_race(lobby_id, user_id, data["stats"])
+
+            elif data["type"] == "RESET_ROUND":
+                await lobby_manager.reset_round(
+                    lobby_id, 
+                    user_id, 
+                    data.get("problemId"), 
+                    data.get("language")
+                )
+
+            elif data["type"] == "UPDATE_SETTINGS":
+                await lobby_manager.update_settings(
+                    lobby_id,
+                    user_id,
+                    data.get("problemId"),
+                    data.get("language")
+                )
+
+            elif data["type"] == "FORCE_END":
+                await lobby_manager.force_end_race(lobby_id, user_id)
+
+            elif data["type"] == "KICK_PARTICIPANT":
+                await lobby_manager.kick_participant(lobby_id, user_id, data["targetId"])
+                
+    except WebSocketDisconnect:
+        await lobby_manager.disconnect(lobby_id, user_id)
 
 # summary of all problems (not yet used)
 @app.get("/api/problems")

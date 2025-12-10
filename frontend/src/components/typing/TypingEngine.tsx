@@ -13,6 +13,7 @@ interface TypingEngineProps {
   language?: "python" | "javascript" | "cpp" | string;
   onFinish?: (stats: GameStats) => void;
   onSubmitStats?: (payload: GameResultPayload) => Promise<void>;
+  onProgress?: (stats: GameStats & { progress: number }) => void;
   maxLinesVisible?: number;
   onMaxLinesChange?: (lines: number) => void;
 }
@@ -45,6 +46,7 @@ export default function TypingEngine({
   language, 
   onFinish, 
   onSubmitStats, 
+  onProgress,
   maxLinesVisible = 10, 
   onMaxLinesChange 
 }: TypingEngineProps) {
@@ -73,6 +75,7 @@ export default function TypingEngine({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  const lastProgressUpdateRef = useRef<number>(0);
   
   // --- AUDIO REF (Singleton) ---
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -287,6 +290,12 @@ export default function TypingEngine({
       const liveStats = calculateStats(newValue);
       setCurrentWpm(liveStats.wpm);
       setCurrentAccuracy(liveStats.accuracy);
+
+      if (onProgress && Date.now() - lastProgressUpdateRef.current > 500) {
+        const progress = Math.round((newValue.length / GAME_CODE.length) * 100);
+        onProgress({ ...liveStats, progress });
+        lastProgressUpdateRef.current = Date.now();
+      }
     }
 
     if (newValue.length === GAME_CODE.length) {

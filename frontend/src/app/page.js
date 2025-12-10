@@ -6,11 +6,12 @@ import { Highlight, themes } from "prism-react-renderer";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { FaGoogle, FaGithub } from "react-icons/fa";
-import { Play, Terminal } from "lucide-react";
+import { Play, Terminal, Users, Plus } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
   const [text, setText] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const fullText = 'print("Hello, Speed(t)Code!")';
 
   // Typewriter effect for the title
@@ -73,16 +74,45 @@ export default function LandingPage() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5, duration: 0.5 }}
-          className="flex flex-col md:flex-row gap-6 w-full max-w-md"
+          className="flex flex-col gap-6 w-full max-w-md"
         >
           <button 
             onClick={() => router.push("/play/1")}
-            className="group relative flex-1 flex items-center justify-center gap-3 px-8 py-4 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-all transform hover:scale-105 shadow-lg shadow-teal-500/30"
+            className="group relative w-full flex items-center justify-center gap-3 px-8 py-4 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-all transform hover:scale-105 shadow-lg shadow-teal-500/30"
           >
             <Play className="w-5 h-5 fill-white" />
             <span>Play Now</span>
             <div className="absolute inset-0 rounded-xl ring-2 ring-white/20 group-hover:ring-white/40 animate-pulse"></div>
           </button>
+
+          {/* Lobby Controls */}
+          <div className="flex gap-4 w-full">
+            <button 
+              onClick={() => router.push("/lobby/create")}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white/80 backdrop-blur-sm text-teal-800 font-bold rounded-xl hover:bg-white transition-all shadow-md border border-teal-100 hover:scale-[1.02]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Lobby</span>
+            </button>
+            
+            <div className="flex-1 flex gap-2">
+              <input 
+                type="text" 
+                placeholder="CODE" 
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white/80 backdrop-blur-sm font-mono text-center uppercase tracking-widest text-sm placeholder:text-gray-400"
+                maxLength={6}
+              />
+              <button 
+                onClick={() => joinCode && router.push(`/lobby/${joinCode}`)}
+                disabled={!joinCode}
+                className="px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+              >
+                <Users className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {/* Auth Options */}

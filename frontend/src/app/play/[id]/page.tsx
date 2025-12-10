@@ -75,17 +75,23 @@ export default function DynamicGamePage() {
   // Loading State
   // While SWR is fetching data, show spinner
   if (isLoading) return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-green-500">
-      <Loader2 className="w-8 h-8 animate-spin" />
+    <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center text-teal-600">
+      <Loader2 className="w-10 h-10 animate-spin" />
     </div>
   );
 
   if (error || !problem) return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-red-500 font-mono">
-      <h2 className="text-xl">Problem #{problemId} Not Found</h2>
-      <button onClick={() => router.push("/")} className="mt-4 underline hover:text-white">
-        Go Home
-      </button>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#DDFFF7] text-center p-4">
+      <div className="bg-white/80 p-8 rounded-2xl shadow-xl border border-red-100">
+        <h2 className="text-2xl font-bold text-red-500 mb-2">Problem Not Found</h2>
+        <p className="text-gray-600 mb-6">Problem #{problemId} could not be loaded.</p>
+        <button 
+          onClick={() => router.push("/")}
+          className="px-6 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all"
+        >
+          Go Home
+        </button>
+      </div>
     </div>
   );
 
@@ -100,12 +106,17 @@ export default function DynamicGamePage() {
       </div>
 
       {/* Header */}
-      <div className="relative z-10 p-6 flex items-center justify-between">
-        <button onClick={() => router.push("/")} className="flex items-center gap-2 text-gray-600 hover:text-black transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back
+      <div className="relative z-10 p-6 flex items-center justify-between border-b border-white/20">
+        <button 
+          onClick={() => router.push("/")} 
+          className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black hover:bg-white/20 rounded-lg transition-all font-semibold"
+          title="Back to Home"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Back</span>
         </button>
-        <div className="flex flex-col items-center gap-2">
-          <h1 className="font-bold text-lg">{problem.title}</h1>
+        <div className="flex flex-col items-center gap-3 flex-1">
+          <h1 className="font-bold text-lg text-gray-900">{problem.title}</h1>
           <div className="flex gap-2">
             {(problem.languages || [selectedLanguage]).map((lang: string) => {
               const labelMap: Record<string, string> = {
@@ -117,7 +128,7 @@ export default function DynamicGamePage() {
                 <button
                   key={lang}
                   onClick={() => setSelectedLanguage(lang)}
-                  className={`px-3 py-1 rounded-full text-sm border transition-all ${selectedLanguage === lang ? "bg-black text-white border-black" : "bg-white text-gray-700 border-gray-300 hover:border-black"}`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all ${selectedLanguage === lang ? "bg-black text-white border-black" : "bg-white text-gray-700 border-gray-300 hover:border-black"}`}
                 >
                   {labelMap[lang] || lang}
                 </button>
