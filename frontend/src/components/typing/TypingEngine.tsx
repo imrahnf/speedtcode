@@ -139,7 +139,7 @@ export default function TypingEngine({
   }, [RAW_CODE]); 
 
   // --- SOUND FUNCTION (Uses Persistent Ref) ---
-  const playSound = (type: 'thock' | 'error') => {
+  const playSound = (type: 'thock' | 'error' | 'backspace') => {
     if (!config.soundEnabled) return;
 
     try {
@@ -168,12 +168,18 @@ export default function TypingEngine({
         gain.gain.setValueAtTime(0.3, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
         osc.type = "sine";
-      } else {
+      } else if (type === 'error') {
         osc.frequency.setValueAtTime(150, ctx.currentTime);
         osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.2, ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.1);
         osc.type = "sawtooth";
+      } else {
+        osc.frequency.setValueAtTime(200, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.06);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.06);
+        osc.type = "triangle";
       }
 
       osc.connect(gain);
@@ -257,6 +263,7 @@ export default function TypingEngine({
     if (!startTime && newValue.length === 1) setStartTime(Date.now());
     
     if (newValue.length < userInput.length) {
+      playSound('backspace');
       setUserInput(newValue);
       return;
     }
@@ -354,8 +361,8 @@ export default function TypingEngine({
         <div className="flex items-center gap-3">
           <span className="opacity-70 uppercase tracking-wider font-semibold">View:</span>
           <div className="flex gap-1">
-            {[1, 3, 5, 10, "All"].map((lineCount) => {
-              const value = lineCount === "All" ? 999 : (lineCount as number); 
+            {[1, 3, 5, 10].map((lineCount) => {
+              const value = lineCount as number;
               return (
                 <button
                   key={lineCount}
