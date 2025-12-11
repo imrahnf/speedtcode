@@ -7,6 +7,7 @@ import uuid
 import asyncio
 import time
 from datetime import datetime
+from problem_manager import problem_manager
 
 # TODO: decouple validation, submission, db, models
 # TODO: add db, auth, cache
@@ -27,6 +28,10 @@ class LobbyManager:
         self.lobbies: Dict[str, dict] = {}
 
     def create_lobby(self, host_id: str, problem_id: str, language: str):
+        # Validate problem exists
+        if not problem_manager.get_problem_metadata(problem_id):
+             raise HTTPException(400, "Invalid problem ID")
+
         lobby_id = str(uuid.uuid4())[:6].upper()
         self.lobbies[lobby_id] = {
             "id": lobby_id,
@@ -250,8 +255,9 @@ class LobbyManager:
 
         # Get problem title
         problem_title = "Unknown Problem"
-        if lobby["problem_id"] in PROBLEMS_DB:
-            problem_title = PROBLEMS_DB[lobby["problem_id"]]["title"]
+        problem_meta = problem_manager.get_problem_metadata(lobby["problem_id"])
+        if problem_meta:
+            problem_title = problem_meta["title"]
 
         lobby["history"].append({
             "round": lobby["round_number"],
@@ -327,84 +333,6 @@ lobby_manager = LobbyManager()
 async def startup_event():
     asyncio.create_task(lobby_manager.cleanup_inactive())
 
-# placeholder
-PROBLEMS_DB = {
-    "1": {
-        "id": "1",
-        "title": "Two Sum",
-        "difficulty": "Easy",
-        "languages": ["python", "javascript", "cpp"],
-        "content": {
-            "python": """class Solution:
-    def twoSum(self, nums: List[int], target: int) -> List[int]:
-        prevMap = {}  # val : index
-        for i, n in enumerate(nums):
-            diff = target - n
-            if diff in prevMap:
-                return [prevMap[diff], i]
-            prevMap[n] = i
-        return []""",
-            "javascript": """class Solution {
-    twoSum(nums, target) {
-        const prevMap = {};
-        for (let i = 0; i < nums.length; i++) {
-            const diff = target - nums[i];
-            if (diff in prevMap) {
-                return [prevMap[diff], i];
-            }
-            prevMap[nums[i]] = i;
-        }
-        return [];
-    }
-}""",
-            "cpp": """class Solution {
-public:
-    vector<int> twoSum(vector<int>& nums, int target) {
-        unordered_map<int, int> prevMap;
-        for (int i = 0; i < nums.size(); i++) {
-            int diff = target - nums[i];
-            if (prevMap.find(diff) != prevMap.end()) {
-                return {prevMap[diff], i};
-            }
-            prevMap[nums[i]] = i;
-        }
-        return {};
-    }
-};"""
-        }
-    },
-    "2": {
-        "id": "2",
-        "title": "Contains Duplicate",
-        "difficulty": "Easy",
-        "languages": ["python"],
-        "content": {
-            "python": """class Solution:
-    def containsDuplicate(self, nums: List[int]) -> bool:
-        hashset = set()
-        for n in nums:
-            if n in hashset:
-                return True
-            hashset.add(n)
-        return False"""
-        }
-    },
-    "3": {
-        "id": "3",
-        "title": "test",
-        "difficulty": "Easy",
-        "languages": ["javascript", "cpp"],
-        "content": {
-            "javascript": """function test() {
-    return false;
-}""",
-            "cpp": """bool test() {
-    return false;
-}"""
-        }
-    }
-}
-
 # Data Models
 class ScoreSubmission(BaseModel):
     wpm: int
@@ -435,7 +363,7 @@ def read_root():
 
 @app.post("/api/lobbies")
 def create_lobby(data: LobbyCreate):
-    if data.problemId not in PROBLEMS_DB:
+    if not problem_manager.get_problem_metadata(data.problemId):
         raise HTTPException(400, "Invalid problem ID")
     
     lobby_id = lobby_manager.create_lobby(data.hostId, data.problemId, data.language)
@@ -512,19 +440,34 @@ async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, 
 # summary of all problems (not yet used)
 @app.get("/api/problems")
 def get_problems():
-    # Return a list of summaries
-    return [
-        {"id": k, "title": v["title"], "difficulty": v["difficulty"], "languages": v["languages"]} 
-        for k, v in PROBLEMS_DB.items()
-    ]
+    return problem_manager.get_all_problems()
 
 # get full problem data (title, languages, and code variants)
 @app.get("/api/problems/{problem_id}")
 def get_problem(problem_id: str):
-    problem = PROBLEMS_DB.get(problem_id)
-    if not problem:
+    meta = problem_manager.get_problem_metadata(problem_id)
+    if not meta:
         raise HTTPException(status_code=404, detail="Problem not found")
-    return problem
+    
+    # Construct the response with content for all available languages
+    # This matches the structure the frontend expects
+    content_map = {}
+    for lang in meta["languages"]:
+        code = problem_manager.get_problem_content(problem_id, lang)
+        if code:
+            content_map[lang] = code
+            
+    return {
+        **meta,
+        "content": content_map
+    }
+
+@app.get("/api/problems/{problem_id}/content/{language}")
+def get_problem_content(problem_id: str, language: str):
+    content = problem_manager.get_problem_content(problem_id, language)
+    if not content:
+        raise HTTPException(404, "Content not found")
+    return {"content": content}
 
 # get leaderboard for a problem (for each problem and language with top n submissions)
 @app.get("/api/leaderboard/{problem_id}")
@@ -541,7 +484,7 @@ def get_leaderboard(problem_id: str, language: str, top: int = 10):
 @app.post("/api/results")
 def submit_results(result: ResultSubmission):
     # 1. INTEGRITY CHECKS (Does the problem exist?)
-    problem = PROBLEMS_DB.get(result.problemId)
+    problem = problem_manager.get_problem_metadata(result.problemId)
     if not problem:
         raise HTTPException(status_code=400, detail=f"Problem {result.problemId} not found")
     
@@ -553,7 +496,10 @@ def submit_results(result: ResultSubmission):
     
     # 2. MATCH CHECK (Did they type the whole thing?)
     # We rely on rawLength to ensure they didn't just type 5 chars and hit submit.
-    target_code = problem["content"][result.language]
+    target_code = problem_manager.get_problem_content(result.problemId, result.language)
+    if not target_code:
+         raise HTTPException(status_code=500, detail="Could not load problem content")
+
     expected_length = len(target_code)
     
     if result.rawLength != expected_length:
