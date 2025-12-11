@@ -14,11 +14,11 @@ class ProblemManager:
         """
         print(f"Loading problems from {self.problems_dir}...")
         
-        # Curated Problem List (Temporary Hardcoded)
+        # Curated Problem List
         ALLOWED_IDS = {"0001", "0002"}
         curated_mode = True
 
-        # Check for curated mode (Environment Override)
+        # Check for curated mode
         if os.environ.get("CURATED_MODE", "false").lower() == "true":
              curated_mode = True
 
@@ -35,7 +35,7 @@ class ProblemManager:
             else:
                 print(f"Curated mode enabled (Hardcoded). Allowed problems: {allowed_problems}")
 
-        # Supported languages and their extensions
+        # Supported languages w extensions
         langs = {
             "python": ".py",
             "cpp": ".cpp",
@@ -80,8 +80,7 @@ class ProblemManager:
                 temp_index[prob_id]["languages"].append(lang)
                 temp_index[prob_id]["paths"][lang] = os.path.join(lang_dir, filename)
 
-        # Filter out problems that don't have at least one language (sanity check)
-        # And sort by ID
+        # Filter out problems that don't have at least one language
         self.problems = dict(sorted(temp_index.items()))
         print(f"Loaded {len(self.problems)} problems.")
 
@@ -110,5 +109,5 @@ class ProblemManager:
         """Returns a list of all problem metadata."""
         return list(self.problems.values())
 
-# Singleton instance
+# Singleton
 problem_manager = ProblemManager()
