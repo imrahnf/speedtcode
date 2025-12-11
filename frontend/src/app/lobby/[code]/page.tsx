@@ -246,6 +246,12 @@ export default function LobbyPage() {
     }
   };
 
+  const handleCancelAutoReturn = () => {
+    if (socket) {
+      socket.send(JSON.stringify({ type: "CANCEL_AUTO_RETURN" }));
+    }
+  };
+
   if (lobbyError || problemError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#DDFFF7] text-center p-4">
@@ -556,36 +562,64 @@ export default function LobbyPage() {
                       </div>
                       
                       <div className="divide-y divide-gray-100 overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
-                        {lobbyState.participants
-                          .filter((p: any) => p.finished)
-                          .sort((a: any, b: any) => a.rank - b.rank)
-                          .map((p: any, i: number) => (
+                        {[...lobbyState.participants]
+                          .sort((a: any, b: any) => {
+                            if (a.finished && b.finished) return a.rank - b.rank;
+                            if (a.finished) return -1;
+                            if (b.finished) return 1;
+                            return b.progress - a.progress;
+                          })
+                          .map((p: any) => (
                           <div key={p.id} className={`p-4 flex items-center gap-4 transition-colors ${p.id === userId ? 'bg-teal-50 border-l-4 border-teal-500' : 'hover:bg-gray-50'}`}>
-                            <div className={`w-8 h-8 flex items-center justify-center font-black text-lg ${p.rank === 1 ? 'text-yellow-500' : p.rank === 2 ? 'text-gray-400' : p.rank === 3 ? 'text-orange-400' : 'text-gray-300'}`}>
-                              #{p.rank}
+                            <div className={`w-8 h-8 flex items-center justify-center font-black text-lg ${p.finished ? (p.rank === 1 ? 'text-yellow-500' : p.rank === 2 ? 'text-gray-400' : p.rank === 3 ? 'text-orange-400' : 'text-gray-300') : 'text-gray-200'}`}>
+                              {p.finished ? `#${p.rank}` : '•'}
                             </div>
                             <div className="flex-1">
                               <div className={`font-bold text-lg ${p.id === userId ? 'text-teal-900' : 'text-gray-900'}`}>
                                 {p.username} {p.id === userId && "(You)"}
                               </div>
-                              <div className="text-xs text-gray-500 font-mono">{(p.timeMs / 1000).toFixed(2)}s</div>
+                              {p.finished ? (
+                                <div className="text-xs text-gray-500 font-mono">{(p.timeMs / 1000).toFixed(2)}s</div>
+                              ) : (
+                                <div className="w-full max-w-[200px] h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                                  <div 
+                                    className="h-full bg-teal-500 transition-all duration-500 ease-out"
+                                    style={{ width: `${p.progress}%` }}
+                                  />
+                                </div>
+                              )}
                             </div>
                             <div className="text-right">
                               <div className="font-black text-xl text-gray-900">{p.wpm} <span className="text-xs font-medium text-gray-400">WPM</span></div>
-                              <div className="text-xs font-bold text-green-600">{p.accuracy}% Acc</div>
+                              {p.finished ? (
+                                <div className="text-xs font-bold text-green-600">{p.accuracy}% Acc</div>
+                              ) : (
+                                <div className="text-xs font-bold text-teal-600 animate-pulse">Racing...</div>
+                              )}
                             </div>
                           </div>
                         ))}
-                        
-                        {lobbyState.participants.filter((p: any) => !p.finished).length > 0 && (
-                           <div className="p-4 text-center text-gray-400 text-sm font-mono animate-pulse">
-                             Waiting for others to finish...
-                           </div>
-                        )}
                       </div>
                       
+                      {/* Auto Return Countdown */}
+                      {lobbyState.next_round_countdown && (
+                        <div className="p-4 bg-teal-600 text-white flex items-center justify-between shrink-0">
+                          <div className="font-bold animate-pulse">
+                            Returning to lobby in {lobbyState.next_round_countdown}s...
+                          </div>
+                          {isHost && (
+                            <button 
+                              onClick={handleCancelAutoReturn}
+                              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-bold transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      )}
+
                       {/* Host Controls */}
-                      {isHost && (
+                      {isHost && !lobbyState.next_round_countdown && (
                         <div className="p-4 bg-gray-50 border-t border-gray-200 shrink-0">
                           <HostControls 
                             onNextRound={handleNextRound} 
@@ -602,6 +636,7 @@ export default function LobbyPage() {
                     language={currentLanguage}
                     onSubmitStats={handleLobbySubmit}
                     onProgress={handleProgress}
+                    showResults={false}
                   />
                 )}
               </>

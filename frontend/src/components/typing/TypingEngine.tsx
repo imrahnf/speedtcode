@@ -17,6 +17,7 @@ interface TypingEngineProps {
   onProgress?: (stats: GameStats & { progress: number }) => void;
   maxLinesVisible?: number;
   onMaxLinesChange?: (lines: number) => void;
+  showResults?: boolean;
 }
 
 interface GameStats {
@@ -49,7 +50,8 @@ export default function TypingEngine({
   onSubmitStats, 
   onProgress,
   maxLinesVisible = 10, 
-  onMaxLinesChange 
+  onMaxLinesChange,
+  showResults = true
 }: TypingEngineProps) {
   
   // --- CORE STATE ---
@@ -660,7 +662,7 @@ export default function TypingEngine({
       </div>
 
       {/* RESULTS CARD (Same as before) */}
-      {isFinished && finalStats && (
+      {showResults && isFinished && finalStats && (
         <div className="bg-white/20 backdrop-blur-md rounded-lg p-6 border border-white/30 shadow-lg animate-in fade-in slide-in-from-bottom-4">
           <div className="flex items-center justify-between gap-8 flex-wrap">
             <div className="flex gap-8 font-mono text-sm font-bold text-gray-800">
