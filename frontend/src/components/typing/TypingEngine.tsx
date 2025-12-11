@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from "re
 import { Highlight, themes } from "prism-react-renderer";
 import confetti from "canvas-confetti";
 import { Timer, Zap, Target, Trophy, Volume2, VolumeX, Activity, MousePointer2 } from "lucide-react";
+import { getPlayableCodeRange } from "@/utils/codeAnalysis";
 
 // --- PROPS & INTERFACES ---
 interface TypingEngineProps {
@@ -81,23 +82,32 @@ export default function TypingEngine({
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // --- DERIVED MEMOS ---
+  const playableRange = useMemo(() => {
+    return getPlayableCodeRange(RAW_CODE, language || "python");
+  }, [RAW_CODE, language]);
+
   const visualToLogicalMap = useMemo(() => {
     const lines = RAW_CODE.split("\n");
     let logicalIndex = 0;
-    return lines.map((line) => {
+    return lines.map((line, index) => {
+      if (index < playableRange.startLine || index >= playableRange.endLine) {
+        return -2; // Boilerplate (distinct from -1 spacer)
+      }
       const isWhitespaceOnly = line.trim().length === 0;
       return isWhitespaceOnly ? -1 : logicalIndex++;
     });
-  }, [RAW_CODE]);
+  }, [RAW_CODE, playableRange]);
 
   const GAME_CODE = useMemo(() => {
-    return RAW_CODE
-      .replace(/\r/g, "")
-      .split("\n")
+    const lines = RAW_CODE.split("\n");
+    const playableLines = lines.slice(playableRange.startLine, playableRange.endLine);
+    
+    return playableLines
+      .map(line => line.replace(/\r/g, ""))
       .filter(line => line.trim().length > 0)
       .map(line => line.trimStart())
       .join("\n");
-  }, [RAW_CODE]);
+  }, [RAW_CODE, playableRange]);
 
   const handleFocus = () => inputRef.current?.focus();
 
@@ -333,9 +343,12 @@ export default function TypingEngine({
   const totalCodeLines = visualToLogicalMap.length;
   const isLongFile = displayLines !== 999 && totalCodeLines > displayLines;
 
+  const activeVisualLineIndex = visualToLogicalMap.findIndex(val => val === userNewlineCount);
+  const targetLineIndex = activeVisualLineIndex !== -1 ? activeVisualLineIndex : playableRange.startLine;
+
   const containerHeight = isLongFile ? displayLines * LINE_HEIGHT_PX : totalCodeLines * LINE_HEIGHT_PX;
   const centerYOffset = (containerHeight / 2) - (LINE_HEIGHT_PX / 2);
-  const translateY = isLongFile ? -(userNewlineCount * LINE_HEIGHT_PX) + centerYOffset : 0;
+  const translateY = isLongFile ? centerYOffset - (targetLineIndex * LINE_HEIGHT_PX) : 0;
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 relative group">
@@ -449,7 +462,7 @@ export default function TypingEngine({
              WebkitMaskImage: isLongFile ? 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' : 'none'
           }}
         >
-          <Highlight theme={themes.vsLight} code={RAW_CODE} language={language || "python"}>
+          <Highlight theme={themes.vsLight} code={RAW_CODE} language={language === 'c++' ? 'cpp' : (language || "python")}>
             {({ className, style, tokens: allTokens, getLineProps, getTokenProps }) => {
               
               let logicalCharIndex = 0;
@@ -487,22 +500,45 @@ export default function TypingEngine({
                     const logicalLineIndex = visualLineIndex; 
                     const mapValue = visualToLogicalMap[logicalLineIndex];
                     const isSpacerLine = mapValue === -1;
-                    const rawLineContent = line.map(t => t.content).join("");
-                    const leadingSpaceCount = rawLineContent.length - rawLineContent.trimStart().length;
-                    const isLineActive = mapValue === userNewlineCount;
+                    const isBoilerplateLine = mapValue === -2;
                     
                     if (isSpacerLine) {
+                      const lineProps = getLineProps({ line });
+                      const { key: _lp, ...restLineProps } = lineProps as any;
+                      return (
+                        <div 
+                          key={visualLineIndex} 
+                          {...restLineProps}
+                          style={{ height: `${LINE_HEIGHT_PX}px`, lineHeight: `${LINE_HEIGHT_PX}px` }}
+                          className="opacity-50 select-none flex items-center"
+                        >
+                        <span>&nbsp;</span>
+                        </div>
+                      );
+                    }
+
+                    if (isBoilerplateLine) {
+                        const lineProps = getLineProps({ line });
+                        const { key: _lp, ...restLineProps } = lineProps as any;
                         return (
                             <div 
                                 key={visualLineIndex} 
-                                {...getLineProps({ line })} 
+                                {...restLineProps}
                                 style={{ height: `${LINE_HEIGHT_PX}px`, lineHeight: `${LINE_HEIGHT_PX}px` }}
-                                className="opacity-50 select-none flex items-center"
+                                className="opacity-40 select-none grayscale italic"
                             >
-                            <span>&nbsp;</span>
+                              {line.map((token, tokenIndex) => {
+                                const tokenProps = getTokenProps({ token, key: tokenIndex });
+                                const { key: _kp, ...restTokenProps } = tokenProps as any;
+                                return <span key={tokenIndex} {...restTokenProps} />;
+                              })}
                             </div>
                         );
                     }
+
+                    const rawLineContent = line.map(t => t.content).join("");
+                    const leadingSpaceCount = rawLineContent.length - rawLineContent.trimStart().length;
+                    const isLineActive = mapValue === userNewlineCount;
 
                     const lineStyle = isLineActive 
                       ? "opacity-100 scale-100 blur-none origin-left" 
@@ -576,7 +612,7 @@ export default function TypingEngine({
                     // However, GAME_CODE is joined by \n.
                     // If we are at the end of a line, we must account for the \n separator.
                     
-                    const totalLogicalLines = visualToLogicalMap.filter(i => i !== -1).length;
+                    const totalLogicalLines = visualToLogicalMap.filter(i => i >= 0).length;
                     if (mapValue < totalLogicalLines - 1) {
                         logicalCharIndex++;
                         
@@ -599,10 +635,12 @@ export default function TypingEngine({
                         );
                     }
 
+                    const lineProps = getLineProps({ line });
+                    const { key: _lp2, ...restLineProps } = lineProps as any;
                     return (
                       <div 
                         key={visualLineIndex} 
-                        {...getLineProps({ line })} 
+                        {...restLineProps}
                         className={`transition-all duration-300 ease-in-out flex items-center ${lineStyle}`}
                         style={{ height: `${LINE_HEIGHT_PX}px`, lineHeight: `${LINE_HEIGHT_PX}px` }}
                       >

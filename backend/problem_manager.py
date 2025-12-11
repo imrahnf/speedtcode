@@ -14,20 +14,26 @@ class ProblemManager:
         """
         print(f"Loading problems from {self.problems_dir}...")
         
-        # Check for curated mode
-        curated_mode = os.environ.get("CURATED_MODE", "false").lower() == "true"
-        allowed_problems = set()
+        # Curated Problem List (Temporary Hardcoded)
+        ALLOWED_IDS = {"0001", "0002"}
+        curated_mode = True
+
+        # Check for curated mode (Environment Override)
+        if os.environ.get("CURATED_MODE", "false").lower() == "true":
+             curated_mode = True
+
+        allowed_problems = ALLOWED_IDS
         if curated_mode:
-            # Example: Load from a file or env var. For now, let's hardcode a few for testing if needed
-            # Or better, look for a 'curated.txt' file
+            # Optional: Load from a file if it exists, otherwise use hardcoded
             curated_file = os.path.join(self.problems_dir, "curated.txt")
             if os.path.exists(curated_file):
                 with open(curated_file, "r") as f:
-                    allowed_problems = {line.strip() for line in f if line.strip()}
-                print(f"Curated mode enabled. Allowed problems: {allowed_problems}")
+                    file_ids = {line.strip() for line in f if line.strip()}
+                    if file_ids:
+                        allowed_problems = file_ids
+                print(f"Curated mode enabled (File). Allowed problems: {allowed_problems}")
             else:
-                print("Curated mode enabled but no curated.txt found. Loading all.")
-                curated_mode = False
+                print(f"Curated mode enabled (Hardcoded). Allowed problems: {allowed_problems}")
 
         # Supported languages and their extensions
         langs = {
@@ -49,7 +55,6 @@ class ProblemManager:
                 if not filename.endswith(ext):
                     continue
 
-                # Parse filename: 0001-two-sum.py -> id="0001", slug="two-sum"
                 match = re.match(r"^(\d+)-(.*)\.(.*)$", filename)
                 if not match:
                     continue
@@ -59,7 +64,7 @@ class ProblemManager:
                 if curated_mode and prob_id not in allowed_problems:
                     continue
                 
-                # Normalize title from slug (two-sum -> Two Sum)
+                # Normalize title from slug (two-sum to Two Sum)
                 title = slug.replace("-", " ").title()
 
                 if prob_id not in temp_index:

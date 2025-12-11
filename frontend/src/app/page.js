@@ -54,9 +54,11 @@ export default function LandingPage() {
                 <code className={`font-mono text-2xl md:text-4xl lg:text-5xl whitespace-nowrap ${className}`} style={{ ...style, backgroundColor: "transparent" }}>
                   {tokens.map((line, i) => (
                     <React.Fragment key={i}>
-                      {line.map((token, key) => (
-                        <span key={key} {...getTokenProps({ token })} />
-                      ))}
+                      {line.map((token, tokenIndex) => {
+                        const tokenProps = getTokenProps({ token });
+                        const { key: _kp, ...restTokenProps } = tokenProps || {};
+                        return <span key={tokenIndex} {...restTokenProps} />;
+                      })}
                     </React.Fragment>
                   ))}
                   <span className="animate-pulse border-l-2 border-gray-800 ml-1 h-8 inline-block align-middle"></span>

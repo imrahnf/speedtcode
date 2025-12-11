@@ -333,7 +333,7 @@ lobby_manager = LobbyManager()
 async def startup_event():
     asyncio.create_task(lobby_manager.cleanup_inactive())
 
-# Data Models
+# Models
 class ScoreSubmission(BaseModel):
     wpm: int
     accuracy: float
@@ -354,7 +354,7 @@ class LobbyCreate(BaseModel):
     problemId: str
     language: str
 
-# health check
+# Health check
 @app.get("/")
 def read_root():
     return {"status": "active", "message": "Speed(t)Code API is running"}
@@ -437,12 +437,12 @@ async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, 
     except WebSocketDisconnect:
         await lobby_manager.disconnect(lobby_id, user_id)
 
-# summary of all problems (not yet used)
+# Summary of all problems
 @app.get("/api/problems")
 def get_problems():
     return problem_manager.get_all_problems()
 
-# get full problem data (title, languages, and code variants)
+# Get full problem data
 @app.get("/api/problems/{problem_id}")
 def get_problem(problem_id: str):
     meta = problem_manager.get_problem_metadata(problem_id)
@@ -450,7 +450,6 @@ def get_problem(problem_id: str):
         raise HTTPException(status_code=404, detail="Problem not found")
     
     # Construct the response with content for all available languages
-    # This matches the structure the frontend expects
     content_map = {}
     for lang in meta["languages"]:
         code = problem_manager.get_problem_content(problem_id, lang)
@@ -469,7 +468,7 @@ def get_problem_content(problem_id: str, language: str):
         raise HTTPException(404, "Content not found")
     return {"content": content}
 
-# get leaderboard for a problem (for each problem and language with top n submissions)
+# Get leaderboard for a problem (NOT YET IMPLEMENTED)
 @app.get("/api/leaderboard/{problem_id}")
 def get_leaderboard(problem_id: str, language: str, top: int = 10):
 
@@ -480,10 +479,10 @@ def get_leaderboard(problem_id: str, language: str, top: int = 10):
         "entries": "entries",
     }
 
-# submit game results with validation
+# Submit game results with validation
 @app.post("/api/results")
 def submit_results(result: ResultSubmission):
-    # 1. INTEGRITY CHECKS (Does the problem exist?)
+    # 1. INTEGRITY CHECKS
     problem = problem_manager.get_problem_metadata(result.problemId)
     if not problem:
         raise HTTPException(status_code=400, detail=f"Problem {result.problemId} not found")
@@ -494,8 +493,7 @@ def submit_results(result: ResultSubmission):
             detail=f"Language '{result.language}' not available"
         )
     
-    # 2. MATCH CHECK (Did they type the whole thing?)
-    # We rely on rawLength to ensure they didn't just type 5 chars and hit submit.
+    # 2. MATCH CHECK
     target_code = problem_manager.get_problem_content(result.problemId, result.language)
     if not target_code:
          raise HTTPException(status_code=500, detail="Could not load problem content")
@@ -508,23 +506,18 @@ def submit_results(result: ResultSubmission):
             detail=f"Length mismatch: Server expects {expected_length}, got {result.rawLength}"
         )
     
-    # 3. BOUNDARY CHECKS (Are numbers within data limits?)
-    # Relaxed lower bounds. 0 accuracy is valid (just terrible).
+    # 3. BOUNDARY CHECKS
     if not (0 <= result.accuracy <= 100):
         raise HTTPException(status_code=400, detail="Accuracy must be 0-100")
 
     # 4. ANTI-CHEAT / PHYSICS CHECK
-    # We only block SUPERHUMAN speeds. 
-    # World record typing is ~220 WPM. Let's cap at 350 to be safe.
+    # World record typing is ~220 WPM - cap at 350 to be safe.
     if result.wpm > 350:
          raise HTTPException(status_code=400, detail="WPM exceeds human limitations.")
 
     # 5. CONSISTENCY CHECK (The 'Magic' Formula)
     # WPM = (Chars / 5) / (Time_Minutes)
     # We calculate the THEORETICAL MAX WPM for the time they submitted.
-    # If their submitted WPM is significantly HIGHER than what is mathematically 
-    # possible given the time they took, they are lying.
-    
     # Example: They claim 100 WPM but timeMs was 10 seconds for 1000 chars.
     
     minutes = result.timeMs / 60000
