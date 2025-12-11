@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 import random
 import uuid
-import json
 import asyncio
 import time
 from datetime import datetime
