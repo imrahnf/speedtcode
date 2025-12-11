@@ -39,7 +39,9 @@ class LobbyManager:
             "connections": {}, # {user_id: websocket}
             "history": [], # List of past match results
             "round_number": 1,
-            "created_at": datetime.now()
+            "created_at": datetime.now(),
+            "last_activity": datetime.now(),
+            "host_left_at": None
         }
         return lobby_id
 
@@ -51,6 +53,11 @@ class LobbyManager:
             return
 
         lobby["connections"][user_id] = websocket
+        lobby["last_activity"] = datetime.now()
+        
+        if user_id == lobby["host_id"]:
+            lobby["host_left_at"] = None
+
         # Always update username if they rejoin or join
         if user_id not in lobby["participants"]:
             lobby["participants"][user_id] = {
@@ -60,12 +67,14 @@ class LobbyManager:
                 "wpm": 0,
                 "rank": None,
                 "finished": False,
-                "connected": True
+                "connected": True,
+                "last_seen": datetime.now()
             }
         else:
             # Update username just in case
             lobby["participants"][user_id]["username"] = username
             lobby["participants"][user_id]["connected"] = True
+            lobby["participants"][user_id]["last_seen"] = datetime.now()
         
         await self.broadcast_state(lobby_id)
 
@@ -80,6 +89,7 @@ class LobbyManager:
         # Just mark as disconnected so they can reconnect.
         if user_id == lobby["host_id"]:
             print(f"Host {user_id} disconnected from lobby {lobby_id}.")
+            lobby["host_left_at"] = datetime.now()
             if user_id in lobby["participants"]:
                 lobby["participants"][user_id]["connected"] = False
             await self.broadcast_state(lobby_id)
@@ -101,11 +111,19 @@ class LobbyManager:
         lobby = self.lobbies.get(lobby_id)
         if not lobby: return
 
+        # Helper to serialize datetime objects
+        def serialize_participant(uid, p):
+            data = p.copy()
+            data["id"] = uid
+            if "last_seen" in data and isinstance(data["last_seen"], datetime):
+                data["last_seen"] = data["last_seen"].isoformat()
+            return data
+
         state = {
             "type": "STATE_UPDATE",
             "status": lobby["status"],
             "participants": [
-                {"id": uid, **p} for uid, p in lobby["participants"].items()
+                serialize_participant(uid, p) for uid, p in lobby["participants"].items()
             ],
             "problemId": lobby["problem_id"],
             "language": lobby["language"],
@@ -196,6 +214,11 @@ class LobbyManager:
         if lobby and lobby["status"] == "racing":
             p = lobby["participants"].get(user_id)
             if p and not p["finished"]:
+                # Enforce minimum accuracy to finish (e.g., 80%)
+                # This prevents button mashers from "winning" with 9% accuracy
+                if stats.get("accuracy", 0) < 80:
+                    return # Ignore finish request if accuracy is too low
+
                 p["finished"] = True
                 p["wpm"] = stats["wpm"]
                 p["accuracy"] = stats["accuracy"]
@@ -226,9 +249,15 @@ class LobbyManager:
         # Sort by rank
         results.sort(key=lambda x: x["rank"] if x["rank"] else 999)
 
+        # Get problem title
+        problem_title = "Unknown Problem"
+        if lobby["problem_id"] in PROBLEMS_DB:
+            problem_title = PROBLEMS_DB[lobby["problem_id"]]["title"]
+
         lobby["history"].append({
             "round": lobby["round_number"],
             "problemId": lobby["problem_id"],
+            "problemTitle": problem_title,
             "language": lobby["language"],
             "results": results,
             "timestamp": datetime.now().isoformat()
@@ -253,7 +282,51 @@ class LobbyManager:
 
         await self.broadcast_state(lobby_id)
 
+    async def cleanup_inactive(self):
+        while True:
+            await asyncio.sleep(60) # Check every minute
+            now = datetime.now()
+            lobbies_to_remove = []
+            
+            for lobby_id, lobby in list(self.lobbies.items()):
+                # 1. Check Lobby Inactivity
+                if (now - lobby["last_activity"]).total_seconds() > 300: # 5 mins
+                    print(f"Lobby {lobby_id} inactive for > 5 mins. Closing.")
+                    lobbies_to_remove.append(lobby_id)
+                    continue
+                
+                # 2. Check Host Disconnect
+                if lobby["host_left_at"] and (now - lobby["host_left_at"]).total_seconds() > 60: # 1 min grace
+                    print(f"Host of lobby {lobby_id} disconnected for > 1 min. Closing.")
+                    lobbies_to_remove.append(lobby_id)
+                    continue
+
+                # 3. Check Participant Inactivity
+                participants_to_kick = []
+                for uid, p in lobby["participants"].items():
+                    # If connected but no activity (no PINGs) for 5 mins
+                    if p.get("last_seen") and (now - p["last_seen"]).total_seconds() > 300:
+                        participants_to_kick.append(uid)
+                
+                for uid in participants_to_kick:
+                    print(f"User {uid} inactive for > 5 mins. Kicking.")
+                    await self.kick_participant(lobby_id, lobby["host_id"], uid)
+            
+            for lobby_id in lobbies_to_remove:
+                # Close all connections
+                lobby = self.lobbies[lobby_id]
+                for ws in lobby["connections"].values():
+                    try:
+                        await ws.close(code=4000, reason="Lobby closed due to inactivity")
+                    except:
+                        pass
+                del self.lobbies[lobby_id]
+
 lobby_manager = LobbyManager()
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(lobby_manager.cleanup_inactive())
 
 # placeholder
 PROBLEMS_DB = {
@@ -393,6 +466,13 @@ async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, 
         while True:
             data = await websocket.receive_json()
             
+            # Update activity
+            lobby = lobby_manager.lobbies.get(lobby_id)
+            if lobby:
+                lobby["last_activity"] = datetime.now()
+                if user_id in lobby["participants"]:
+                    lobby["participants"][user_id]["last_seen"] = datetime.now()
+
             if data["type"] == "PING":
                 pass # Keep-alive
 

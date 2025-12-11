@@ -1,0 +1,251 @@
+"use client";
+
+import React, { useState, useCallback } from "react";
+import { API_BASE_URL } from "@/config";
+import useSWR from "swr";
+import { useRouter } from "next/navigation";
+import { Loader2, ArrowLeft, Trophy, Code2, Play, RefreshCw } from "lucide-react";
+import TypingEngine from "@/components/typing/TypingEngine";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export default function PlayPage() {
+  const router = useRouter();
+  const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("python");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [gameKey, setGameKey] = useState(0); // To force reset game
+
+  const { data: problems, isLoading } = useSWR(`${API_BASE_URL}/api/problems`, fetcher);
+  
+  const { data: problemDetails } = useSWR(
+    selectedProblemId ? `${API_BASE_URL}/api/problems/${selectedProblemId}` : null,
+    fetcher
+  );
+
+  // Auto-select first problem
+  React.useEffect(() => {
+    if (problems && problems.length > 0 && !selectedProblemId) {
+      setSelectedProblemId(problems[0].id);
+    }
+  }, [problems]);
+
+  // Auto-select language
+  React.useEffect(() => {
+    if (problemDetails?.languages?.length > 0) {
+      if (!problemDetails.languages.includes(selectedLanguage)) {
+        setSelectedLanguage(problemDetails.languages[0]);
+      }
+    }
+  }, [problemDetails, selectedLanguage]);
+
+  // Reset playing state when problem changes
+  React.useEffect(() => {
+    setIsPlaying(false);
+  }, [selectedProblemId, selectedLanguage]);
+
+  const handleSubmitStats = useCallback(async (payload: any) => {
+    const payloadWithLanguage = {
+      ...payload,
+      language: payload.language || selectedLanguage,
+    };
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/results`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payloadWithLanguage),
+      });
+      const data = await res.json();
+      return data.rank;
+    } catch (err) {
+      console.error("Failed to submit results", err);
+    }
+  }, [selectedLanguage]);
+
+  const handleRestart = () => {
+    setGameKey(prev => prev + 1);
+  };
+
+  if (isLoading) return (
+    <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center text-teal-600">
+      <Loader2 className="w-10 h-10 animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#DDFFF7] text-black font-sans flex flex-col">
+      {/* Header */}
+      <div className="bg-white/80 backdrop-blur-md p-4 border-b border-white/50 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => router.push("/")}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Code2 className="w-6 h-6 text-teal-600" />
+            Play
+          </h1>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar: Problem List */}
+        <div className="w-80 bg-white/50 border-r border-white/50 overflow-y-auto p-4 flex flex-col gap-2 shrink-0">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Problems</h2>
+          {problems?.map((p: any) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedProblemId(p.id)}
+              className={`text-left p-4 rounded-xl transition-all border ${
+                selectedProblemId === p.id 
+                  ? 'bg-white border-teal-500 shadow-md ring-1 ring-teal-500' 
+                  : 'bg-white/40 border-transparent hover:bg-white/80 hover:shadow-sm'
+              }`}
+            >
+              <div className="font-bold text-gray-900">{p.title}</div>
+              <div className="flex justify-between items-center mt-2">
+                <span className={`text-xs font-bold px-2 py-1 rounded ${
+                  p.difficulty === 'Easy' ? 'bg-green-100 text-green-700' : 
+                  p.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {p.difficulty}
+                </span>
+              </div>
+              <div className="mt-2 text-xs text-gray-500 font-mono truncate">
+                {p.languages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(", ")}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Center: Details & Play */}
+        <div className="flex-1 p-8 overflow-y-auto flex flex-col items-center relative">
+          {problemDetails ? (
+            <div className="w-full max-w-4xl space-y-8">
+              {/* Title & Language Selector */}
+              <div className="text-center space-y-4">
+                <h2 className="text-4xl font-black text-gray-900">{problemDetails.title}</h2>
+                {!isPlaying && (
+                  <div className="flex justify-center gap-2">
+                    {problemDetails.languages.map((lang: string) => (
+                      <button
+                        key={lang}
+                        onClick={() => setSelectedLanguage(lang)}
+                        className={`px-4 py-2 rounded-lg font-mono text-sm font-bold uppercase transition-all ${
+                          selectedLanguage === lang 
+                            ? 'bg-black text-white shadow-lg scale-105' 
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {isPlaying ? (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex justify-between items-center mb-4">
+                    <button 
+                      onClick={() => setIsPlaying(false)}
+                      className="text-sm font-bold text-gray-500 hover:text-black flex items-center gap-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back to Details
+                    </button>
+                    <button 
+                      onClick={handleRestart}
+                      className="text-sm font-bold text-teal-600 hover:text-teal-800 flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Restart
+                    </button>
+                  </div>
+                  
+                  <TypingEngine 
+                    key={gameKey}
+                    code={problemDetails.content[selectedLanguage]}
+                    problemId={selectedProblemId!}
+                    language={selectedLanguage}
+                    onSubmitStats={handleSubmitStats}
+                  />
+                </div>
+              ) : (
+                <div className="bg-white/60 p-8 rounded-3xl shadow-xl border border-white/50 backdrop-blur-sm flex flex-col items-center gap-6 animate-in zoom-in-95 duration-300">
+                  <div className="text-center space-y-2">
+                    <p className="text-gray-600">Ready to test your speed?</p>
+                    <div className="text-sm text-gray-500">
+                      Language: <span className="font-bold uppercase text-teal-600">{selectedLanguage}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setIsPlaying(true)}
+                    className="px-12 py-4 bg-teal-600 text-white text-xl font-bold rounded-2xl hover:bg-teal-700 transition-all shadow-lg hover:scale-105 flex items-center gap-3"
+                  >
+                    <Play className="w-6 h-6 fill-white" />
+                    Start
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400">
+              Select a problem to view details
+            </div>
+          )}
+        </div>
+
+        {/* Right Sidebar: Leaderboard (Mock) */}
+        <div className="w-80 bg-white/50 border-l border-white/50 overflow-y-auto p-4 shrink-0">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Leaderboard</h2>
+          </div>
+          
+          {selectedProblemId ? (
+            <div className="space-y-3">
+              <div className="text-xs text-center text-gray-400 mb-4">
+                Top scores for <span className="font-bold text-gray-600">{problemDetails?.title}</span> ({selectedLanguage})
+              </div>
+              
+              {/* Mock Entries */}
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-white p-3 rounded-xl shadow-sm flex items-center gap-3">
+                  <div className={`w-6 h-6 flex items-center justify-center font-bold text-sm ${
+                    i === 1 ? 'text-yellow-500' : i === 2 ? 'text-gray-400' : i === 3 ? 'text-orange-400' : 'text-gray-300'
+                  }`}>
+                    #{i}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-gray-900">User_{Math.random().toString(36).substr(2, 5)}</div>
+                    <div className="text-xs text-gray-500">{(Math.random() * 10 + 5).toFixed(2)}s</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-teal-700">{Math.floor(Math.random() * 100 + 50)} WPM</div>
+                  </div>
+                </div>
+              ))}
+              
+              <div className="text-center text-xs text-gray-400 mt-4">
+                Leaderboard is currently mocked.
+                <br/>
+                Database integration pending.
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 text-sm mt-10">
+              Select a problem to view leaderboard
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

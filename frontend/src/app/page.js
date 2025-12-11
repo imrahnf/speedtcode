@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { FaGoogle, FaGithub } from "react-icons/fa";
+import { FaGithub } from "react-icons/fa";
 import { Play, Terminal, Users, Plus, ArrowRight } from "lucide-react";
 
 export default function LandingPage() {
@@ -77,7 +77,7 @@ export default function LandingPage() {
           className="flex flex-col gap-6 w-full max-w-md"
         >
           <button 
-            onClick={() => router.push("/play/1")}
+            onClick={() => router.push("/play")}
             className="group relative w-full flex items-center justify-center gap-3 px-8 py-4 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-all transform hover:scale-105 shadow-lg shadow-teal-500/30"
           >
             <Play className="w-5 h-5 fill-white" />
@@ -134,11 +134,9 @@ export default function LandingPage() {
           </div>
 
           <div className="flex gap-4 w-full">
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all text-black shadow-sm">
-              <FaGoogle className="w-5 h-5" />
-            </button>
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all text-black shadow-sm">
+            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#24292e] text-white border border-transparent rounded-lg hover:bg-[#2f363d] transition-all shadow-sm">
               <FaGithub className="w-5 h-5" />
+              <span className="font-medium">Continue with GitHub</span>
             </button>
           </div>
         </motion.div>

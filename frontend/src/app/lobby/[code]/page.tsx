@@ -76,22 +76,35 @@ export default function LobbyPage() {
     let ws: WebSocket | null = null;
     let pingInterval: NodeJS.Timeout;
     let reconnectTimeout: NodeJS.Timeout;
+    let connectionTimeout: NodeJS.Timeout;
     let isUnmounting = false;
 
     const connect = () => {
       if (isUnmounting) return;
 
       console.log("Connecting to WebSocket...");
-      ws = new WebSocket(`${WS_BASE_URL}/ws/lobby/${lobbyId}/${userId}/${username}`);
+      // Encode username to handle special characters/spaces
+      ws = new WebSocket(`${WS_BASE_URL}/ws/lobby/${lobbyId}/${userId}/${encodeURIComponent(username)}`);
       
+      // Connection timeout safety
+      connectionTimeout = setTimeout(() => {
+        if (ws?.readyState !== WebSocket.OPEN) {
+          console.error("Connection timed out");
+          ws?.close();
+          alert("Connection timed out. Please check your network or try again.");
+          setIsJoined(false);
+        }
+      }, 5000);
+
       ws.onopen = () => {
+        clearTimeout(connectionTimeout);
         console.log("Connected to lobby");
-        // Send ping every 30s to keep connection alive
+        // Send ping every 5s to keep connection alive
         pingInterval = setInterval(() => {
           if (ws?.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "PING" }));
           }
-        }, 30000);
+        }, 5000);
       };
 
       ws.onmessage = (event) => {
@@ -140,6 +153,7 @@ export default function LobbyPage() {
       isUnmounting = true;
       clearInterval(pingInterval);
       clearTimeout(reconnectTimeout);
+      clearTimeout(connectionTimeout);
       if (ws) {
         ws.onclose = null; // Prevent reconnect logic on cleanup
         ws.close();
@@ -527,12 +541,70 @@ export default function LobbyPage() {
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="w-full max-w-4xl">
             {problem && (
-              <TypingEngine 
-                code={problem.content[currentLanguage]}
-                language={currentLanguage}
-                onSubmitStats={handleLobbySubmit}
-                onProgress={handleProgress}
-              />
+              <>
+                {/* If user is finished, show waiting message or leaderboard instead of typing engine */}
+                {lobbyState?.participants.find((p: any) => p.id === userId)?.finished ? (
+                  <div className="flex flex-col items-center justify-center gap-6 animate-in fade-in zoom-in duration-300 w-full">
+                    
+                    {/* Results Card */}
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
+                      <div className="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center shrink-0">
+                        <h2 className="text-2xl font-black text-gray-900">Race Results</h2>
+                        <div className="text-sm font-bold text-teal-600">
+                          {lobbyState.participants.filter((p: any) => p.finished).length} / {lobbyState.participants.length} Finished
+                        </div>
+                      </div>
+                      
+                      <div className="divide-y divide-gray-100 overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+                        {lobbyState.participants
+                          .filter((p: any) => p.finished)
+                          .sort((a: any, b: any) => a.rank - b.rank)
+                          .map((p: any, i: number) => (
+                          <div key={p.id} className={`p-4 flex items-center gap-4 transition-colors ${p.id === userId ? 'bg-teal-50 border-l-4 border-teal-500' : 'hover:bg-gray-50'}`}>
+                            <div className={`w-8 h-8 flex items-center justify-center font-black text-lg ${p.rank === 1 ? 'text-yellow-500' : p.rank === 2 ? 'text-gray-400' : p.rank === 3 ? 'text-orange-400' : 'text-gray-300'}`}>
+                              #{p.rank}
+                            </div>
+                            <div className="flex-1">
+                              <div className={`font-bold text-lg ${p.id === userId ? 'text-teal-900' : 'text-gray-900'}`}>
+                                {p.username} {p.id === userId && "(You)"}
+                              </div>
+                              <div className="text-xs text-gray-500 font-mono">{(p.timeMs / 1000).toFixed(2)}s</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-black text-xl text-gray-900">{p.wpm} <span className="text-xs font-medium text-gray-400">WPM</span></div>
+                              <div className="text-xs font-bold text-green-600">{p.accuracy}% Acc</div>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {lobbyState.participants.filter((p: any) => !p.finished).length > 0 && (
+                           <div className="p-4 text-center text-gray-400 text-sm font-mono animate-pulse">
+                             Waiting for others to finish...
+                           </div>
+                        )}
+                      </div>
+                      
+                      {/* Host Controls */}
+                      {isHost && (
+                        <div className="p-4 bg-gray-50 border-t border-gray-200 shrink-0">
+                          <HostControls 
+                            onNextRound={handleNextRound} 
+                            currentProblemId={currentProblemId}
+                            currentLanguage={currentLanguage}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <TypingEngine 
+                    code={problem.content[currentLanguage]}
+                    language={currentLanguage}
+                    onSubmitStats={handleLobbySubmit}
+                    onProgress={handleProgress}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
@@ -543,83 +615,6 @@ export default function LobbyPage() {
         currentRound={lobbyState?.roundNumber || 1} 
         isOpen={lobbyState?.status !== 'racing'}
       />
-
-      {/* Live Leaderboard Overlay (if finished) */}
-      {lobbyState?.participants.find((p: any) => p.id === userId)?.finished && showResults && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center shrink-0">
-              <h2 className="text-2xl font-black text-gray-900">Race Results</h2>
-              <div className="flex gap-2">
-                <button onClick={() => setShowResults(false)} className="text-sm font-bold text-gray-500 hover:text-black px-3 py-1 rounded hover:bg-gray-200">
-                  Minimize
-                </button>
-              </div>
-            </div>
-            
-            <div className="divide-y divide-gray-100 overflow-y-auto flex-1">
-              {lobbyState.participants
-                .filter((p: any) => p.finished)
-                .sort((a: any, b: any) => a.rank - b.rank)
-                .slice(0, showFullLeaderboard ? undefined : 5)
-                .map((p: any, i: number) => (
-                <div key={p.id} className={`p-4 flex items-center gap-4 transition-colors ${p.id === userId ? 'bg-teal-50 border-l-4 border-teal-500' : 'hover:bg-gray-50'}`}>
-                  <div className={`w-8 h-8 flex items-center justify-center font-black text-lg ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-gray-300'}`}>
-                    #{p.rank}
-                  </div>
-                  <div className="flex-1">
-                    <div className={`font-bold text-lg ${p.id === userId ? 'text-teal-900' : 'text-gray-900'}`}>
-                      {p.username} {p.id === userId && "(You)"}
-                    </div>
-                    <div className="text-xs text-gray-500 font-mono">{(p.timeMs / 1000).toFixed(2)}s</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-black text-xl text-gray-900">{p.wpm} <span className="text-xs font-medium text-gray-400">WPM</span></div>
-                    <div className="text-xs font-bold text-green-600">{p.accuracy}% Acc</div>
-                  </div>
-                </div>
-              ))}
-              
-              {!showFullLeaderboard && lobbyState.participants.filter((p: any) => p.finished).length > 5 && (
-                <button 
-                  onClick={() => setShowFullLeaderboard(true)}
-                  className="w-full p-3 text-center text-sm font-bold text-gray-500 hover:bg-gray-50 hover:text-black transition-colors"
-                >
-                  View All {lobbyState.participants.filter((p: any) => p.finished).length} Entries
-                </button>
-              )}
-
-              {lobbyState.participants.filter((p: any) => !p.finished).length > 0 && (
-                 <div className="p-4 text-center text-gray-400 text-sm font-mono animate-pulse">
-                   Waiting for others to finish...
-                 </div>
-              )}
-            </div>
-            
-            {/* Host Controls */}
-            {isHost && (
-              <div className="p-4 bg-gray-50 border-t border-gray-200 shrink-0">
-                <HostControls 
-                  onNextRound={handleNextRound} 
-                  currentProblemId={currentProblemId}
-                  currentLanguage={currentLanguage}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {/* Minimized Results Button */}
-      {lobbyState?.participants.find((p: any) => p.id === userId)?.finished && !showResults && (
-        <button
-          onClick={() => setShowResults(true)}
-          className="fixed bottom-8 right-80 mr-8 bg-black text-white px-6 py-3 rounded-full font-bold shadow-xl hover:scale-105 transition-all z-50 flex items-center gap-2"
-        >
-          <Trophy className="w-4 h-4" />
-          View Results
-        </button>
-      )}
     </div>
   );
 }
