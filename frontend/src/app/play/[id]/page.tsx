@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
+import { API_BASE_URL } from "@/config";
 import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation"; // 
 import TypingEngine from "@/components/typing/TypingEngine";
@@ -23,7 +24,7 @@ export default function DynamicGamePage() {
 
   // SWR key changes automatically when problemId changes
   const { data: problem, error, isLoading } = useSWR(
-    `http://localhost:8000/api/problems/${problemId}`,
+    `${API_BASE_URL}/api/problems/${problemId}`,
     fetcher,
     { 
       revalidateOnFocus: false,
@@ -56,7 +57,7 @@ export default function DynamicGamePage() {
       language: payload.language || selectedLanguage,
     };
     try {
-      const res = await fetch("http://localhost:8000/api/results", {
+      const res = await fetch(`${API_BASE_URL}/api/results`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

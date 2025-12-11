@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/config";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { ArrowLeft, Loader2, Trophy } from "lucide-react";
@@ -14,11 +15,11 @@ export default function CreateLobbyPage() {
   const [isCreating, setIsCreating] = useState(false);
 
   // Fetch available problems
-  const { data: problems, isLoading } = useSWR("http://localhost:8000/api/problems", fetcher);
+  const { data: problems, isLoading } = useSWR(`${API_BASE_URL}/api/problems`, fetcher);
   
   // Fetch details for selected problem to get languages
   const { data: problemDetails } = useSWR(
-    selectedProblem ? `http://localhost:8000/api/problems/${selectedProblem}` : null,
+    selectedProblem ? `${API_BASE_URL}/api/problems/${selectedProblem}` : null,
     fetcher
   );
 
@@ -41,7 +42,7 @@ export default function CreateLobbyPage() {
       // Do not force "Host" username
       // localStorage.setItem("username", "Host");
 
-      const res = await fetch("http://localhost:8000/api/lobbies", {
+      const res = await fetch(`${API_BASE_URL}/api/lobbies`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

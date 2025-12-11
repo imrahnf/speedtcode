@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { API_BASE_URL, WS_BASE_URL } from "@/config";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import TypingEngine from "@/components/typing/TypingEngine";
@@ -30,7 +31,7 @@ export default function LobbyPage() {
 
   // Fetch initial lobby data (for problem content)
   const { data: lobbyInfo, error: lobbyError } = useSWR(
-    `http://localhost:8000/api/lobbies/${lobbyId}`,
+    `${API_BASE_URL}/api/lobbies/${lobbyId}`,
     fetcher,
     { shouldRetryOnError: false }
   );
@@ -40,7 +41,7 @@ export default function LobbyPage() {
   const currentLanguage = lobbyState?.language || lobbyInfo?.language;
 
   const { data: problem, error: problemError } = useSWR(
-    currentProblemId ? `http://localhost:8000/api/problems/${currentProblemId}` : null,
+    currentProblemId ? `${API_BASE_URL}/api/problems/${currentProblemId}` : null,
     fetcher
   );
 
@@ -72,40 +73,79 @@ export default function LobbyPage() {
   useEffect(() => {
     if (!isJoined || !userId || !username) return;
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/lobby/${lobbyId}/${userId}/${username}`);
-    
-    ws.onopen = () => {
-      console.log("Connected to lobby");
+    let ws: WebSocket | null = null;
+    let pingInterval: NodeJS.Timeout;
+    let reconnectTimeout: NodeJS.Timeout;
+    let isUnmounting = false;
+
+    const connect = () => {
+      if (isUnmounting) return;
+
+      console.log("Connecting to WebSocket...");
+      ws = new WebSocket(`${WS_BASE_URL}/ws/lobby/${lobbyId}/${userId}/${username}`);
+      
+      ws.onopen = () => {
+        console.log("Connected to lobby");
+        // Send ping every 30s to keep connection alive
+        pingInterval = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "PING" }));
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "STATE_UPDATE") {
+            setLobbyState(data);
+          } else if (data.type === "LOBBY_CLOSED") {
+            alert("The host has disbanded the lobby.");
+            router.push("/");
+          } else if (data.type === "KICKED") {
+            alert("You have been kicked from the lobby.");
+            router.push("/");
+          }
+        } catch (err) {
+          console.error("Failed to parse WS message", err);
+        }
+      };
+
+      ws.onclose = (e) => {
+        console.log("Disconnected", e.code, e.reason);
+        clearInterval(pingInterval);
+        
+        if (isUnmounting) return;
+
+        // If closed normally (1000) or explicitly by backend (4000), don't reconnect
+        if (e.code === 1000 || e.code === 4000) {
+           if (e.code === 4000) {
+             alert("Lobby not found or has ended.");
+             setIsJoined(false);
+             router.push("/");
+           }
+        } else {
+          // Try to reconnect in 3 seconds for other errors (network issues, etc)
+          console.log("Connection lost. Attempting to reconnect in 3s...");
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
+      
+      setSocket(ws);
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "STATE_UPDATE") {
-        setLobbyState(data);
-      } else if (data.type === "LOBBY_CLOSED") {
-        alert("The host has disbanded the lobby.");
-        router.push("/");
-      } else if (data.type === "KICKED") {
-        alert("You have been kicked from the lobby.");
-        router.push("/");
-      }
-    };
-
-    ws.onclose = (e) => {
-      console.log("Disconnected", e.code, e.reason);
-      if (e.code === 4000) {
-         alert("Lobby not found or has ended.");
-         setIsJoined(false);
-         router.push("/");
-      }
-    };
-
-    setSocket(ws);
+    connect();
 
     return () => {
-      ws.close();
+      isUnmounting = true;
+      clearInterval(pingInterval);
+      clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onclose = null; // Prevent reconnect logic on cleanup
+        ws.close();
+      }
     };
-  }, [isJoined, lobbyId, userId, username]);
+  }, [isJoined, lobbyId, userId, username, router]);
 
   // Reset results visibility when race starts
   useEffect(() => {

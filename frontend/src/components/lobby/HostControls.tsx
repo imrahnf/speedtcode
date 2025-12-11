@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE_URL } from "@/config";
 import { Play, Settings, RefreshCw, Check } from "lucide-react";
 import useSWR from "swr";
 
@@ -16,9 +17,9 @@ export default function HostControls({ onNextRound, currentProblemId, currentLan
   const [selectedProblem, setSelectedProblem] = useState(currentProblemId);
   const [selectedLanguage, setSelectedLanguage] = useState(currentLanguage);
 
-  const { data: problems } = useSWR("http://localhost:8000/api/problems", fetcher);
+  const { data: problems } = useSWR(`${API_BASE_URL}/api/problems`, fetcher);
   const { data: problemDetails } = useSWR(
-    selectedProblem ? `http://localhost:8000/api/problems/${selectedProblem}` : null,
+    selectedProblem ? `${API_BASE_URL}/api/problems/${selectedProblem}` : null,
     fetcher
   );
 

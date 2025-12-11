@@ -6,7 +6,7 @@ import { Highlight, themes } from "prism-react-renderer";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { FaGoogle, FaGithub } from "react-icons/fa";
-import { Play, Terminal, Users, Plus } from "lucide-react";
+import { Play, Terminal, Users, Plus, ArrowRight } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -101,6 +101,11 @@ export default function LandingPage() {
                 placeholder="CODE" 
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && joinCode) {
+                    router.push(`/lobby/${joinCode}`);
+                  }
+                }}
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white/80 backdrop-blur-sm font-mono text-center uppercase tracking-widest text-sm placeholder:text-gray-400"
                 maxLength={6}
               />
@@ -109,7 +114,7 @@ export default function LandingPage() {
                 disabled={!joinCode}
                 className="px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
               >
-                <Users className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>

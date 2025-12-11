@@ -16,7 +16,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000","http://192.168.0.100:3000", "http://192.168.0.125:3000"],
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,20 +76,13 @@ class LobbyManager:
         if user_id in lobby["connections"]:
             del lobby["connections"][user_id]
 
-        # If host leaves, close the lobby for everyone
+        # If host leaves, DO NOT close the lobby immediately. 
+        # Just mark as disconnected so they can reconnect.
         if user_id == lobby["host_id"]:
-            print(f"Host {user_id} left lobby {lobby_id}. Closing lobby.")
-            close_msg = {"type": "LOBBY_CLOSED"}
-            # Notify all remaining connections
-            for ws in list(lobby["connections"].values()):
-                try:
-                    await ws.send_json(close_msg)
-                    await ws.close()
-                except:
-                    pass
-            # Delete the lobby
-            if lobby_id in self.lobbies:
-                del self.lobbies[lobby_id]
+            print(f"Host {user_id} disconnected from lobby {lobby_id}.")
+            if user_id in lobby["participants"]:
+                lobby["participants"][user_id]["connected"] = False
+            await self.broadcast_state(lobby_id)
             return
 
         # If normal user leaves
@@ -122,7 +115,8 @@ class LobbyManager:
         }
         
         to_remove = []
-        for uid, ws in lobby["connections"].items():
+        # Create a copy of items to avoid "dictionary changed size during iteration"
+        for uid, ws in list(lobby["connections"].items()):
             try:
                 await ws.send_json(state)
             except:
@@ -391,6 +385,7 @@ def get_lobby(lobby_id: str):
         "participants": len(lobby["participants"])
     }
 
+# Lobby manager
 @app.websocket("/ws/lobby/{lobby_id}/{user_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, username: str):
     await lobby_manager.connect(websocket, lobby_id, user_id, username)
@@ -398,7 +393,10 @@ async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, 
         while True:
             data = await websocket.receive_json()
             
-            if data["type"] == "START_RACE":
+            if data["type"] == "PING":
+                pass # Keep-alive
+
+            elif data["type"] == "START_RACE":
                 await lobby_manager.start_race(lobby_id, user_id)
             
             elif data["type"] == "UPDATE_PROGRESS":
