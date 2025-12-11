@@ -15,6 +15,7 @@ export default function PlayPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("python");
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameKey, setGameKey] = useState(0); // To force reset game
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: problems, isLoading } = useSWR(`${API_BASE_URL}/api/problems`, fetcher);
   
@@ -29,6 +30,11 @@ export default function PlayPage() {
       setSelectedProblemId(problems[0].id);
     }
   }, [problems]);
+
+  const filteredProblems = problems?.filter((p: any) => 
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.id.includes(searchQuery)
+  ) || [];
 
   // Auto-select language
   React.useEffect(() => {
@@ -75,7 +81,7 @@ export default function PlayPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#DDFFF7] text-black font-sans flex flex-col">
+    <div className="h-screen bg-[#DDFFF7] text-black font-sans flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md p-4 border-b border-white/50 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
@@ -94,26 +100,37 @@ export default function PlayPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar: Problem List */}
-        <div className="w-80 bg-white/50 border-r border-white/50 overflow-y-auto p-4 flex flex-col gap-2 shrink-0">
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Problems</h2>
-          {problems?.map((p: any) => (
+        <div className="w-80 bg-white/50 border-r border-white/50 overflow-hidden flex flex-col shrink-0">
+          <div className="p-4 pb-2">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Problems</h2>
+            <input 
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/80 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+            />
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 pt-0 flex flex-col gap-2">
+            {filteredProblems.map((p: any) => (
             <button
               key={p.id}
               onClick={() => setSelectedProblemId(p.id)}
-              className={`text-left p-4 rounded-xl transition-all border ${
+              className={`text-left p-4 rounded-xl transition-all border shrink-0 ${
                 selectedProblemId === p.id 
                   ? 'bg-white border-teal-500 shadow-md ring-1 ring-teal-500' 
                   : 'bg-white/40 border-transparent hover:bg-white/80 hover:shadow-sm'
               }`}
             >
-              <div className="font-bold text-gray-900">{p.title}</div>
+              <div className="font-bold text-gray-900 truncate">{p.title}</div>
               <div className="flex justify-between items-center mt-2">
                 <span className={`text-xs font-bold px-2 py-1 rounded ${
                   p.difficulty === 'Easy' ? 'bg-green-100 text-green-700' : 
                   p.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
                   'bg-red-100 text-red-700'
                 }`}>
-                  {p.difficulty}
+                  {p.id}
                 </span>
               </div>
               <div className="mt-2 text-xs text-gray-500 font-mono truncate">
@@ -121,6 +138,12 @@ export default function PlayPage() {
               </div>
             </button>
           ))}
+          {filteredProblems.length === 0 && (
+            <div className="text-center text-gray-400 text-sm py-8">
+              No problems found
+            </div>
+          )}
+          </div>
         </div>
 
         {/* Center: Details & Play */}

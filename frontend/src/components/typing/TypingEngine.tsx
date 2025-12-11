@@ -492,7 +492,6 @@ export default function TypingEngine({
                     const isLineActive = mapValue === userNewlineCount;
                     
                     if (isSpacerLine) {
-                        logicalCharIndex++; 
                         return (
                             <div 
                                 key={visualLineIndex} 
@@ -571,25 +570,33 @@ export default function TypingEngine({
                     // Newline Handling
                     let newlineElement = null;
                     const newlineIndex = logicalCharIndex;
-                    logicalCharIndex++;
-
-                    if (newlineIndex < GAME_CODE.length) {
-                       const userChar = userInput[newlineIndex];
-                       const isCursor = newlineIndex === userInput.length;
-                       
-                       newlineElement = (
-                         <span 
-                           key="newline" 
-                           id={isCursor ? "active-cursor-anchor" : undefined}
-                           className={!config.smoothCursor && isCursor ? "border-l-2 border-yellow-400 animate-pulse" : ""}
-                         >
-                           {userChar !== undefined && userChar !== "\n" ? (
-                             <span className="text-red-500 bg-red-900/50">⏎</span> 
-                           ) : (
-                             "\u200B"
-                           )}
-                         </span>
-                       );
+                    
+                    // Only increment logicalCharIndex for newline if we are NOT at the very end of the code
+                    // AND if the next char in GAME_CODE is indeed a newline (which it implicitly is between lines)
+                    // However, GAME_CODE is joined by \n.
+                    // If we are at the end of a line, we must account for the \n separator.
+                    
+                    const totalLogicalLines = visualToLogicalMap.filter(i => i !== -1).length;
+                    if (mapValue < totalLogicalLines - 1) {
+                        logicalCharIndex++;
+                        
+                        const userChar = userInput[newlineIndex];
+                        const isCursor = newlineIndex === userInput.length;
+                        
+                        newlineElement = (
+                            <span 
+                            key="newline" 
+                            id={isCursor ? "active-cursor-anchor" : undefined}
+                            className={`inline-block ${!config.smoothCursor && isCursor ? "border-l-2 border-yellow-400 animate-pulse" : ""}`}
+                            style={{ width: '1ch' }} 
+                            >
+                            {userChar !== undefined && userChar !== "\n" ? (
+                                <span className="text-red-500 bg-red-900/50">⏎</span> 
+                            ) : (
+                                "\u200B" 
+                            )}
+                            </span>
+                        );
                     }
 
                     return (

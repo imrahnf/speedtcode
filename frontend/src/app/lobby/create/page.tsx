@@ -5,12 +5,13 @@ import { API_BASE_URL } from "@/config";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { ArrowLeft, Loader2, Trophy } from "lucide-react";
+import ProblemSelector from "@/components/common/ProblemSelector";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function CreateLobbyPage() {
   const router = useRouter();
-  const [selectedProblem, setSelectedProblem] = useState("1");
+  const [selectedProblem, setSelectedProblem] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("python");
   const [isCreating, setIsCreating] = useState(false);
 
@@ -22,6 +23,13 @@ export default function CreateLobbyPage() {
     selectedProblem ? `${API_BASE_URL}/api/problems/${selectedProblem}` : null,
     fetcher
   );
+
+  // Set default problem when list loads
+  useEffect(() => {
+    if (problems && problems.length > 0 && !selectedProblem) {
+      setSelectedProblem(problems[0].id);
+    }
+  }, [problems]);
 
   // Update selected language when problem details change
   useEffect(() => {
@@ -102,20 +110,11 @@ export default function CreateLobbyPage() {
 
         <div className="space-y-6">
           {/* Problem Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Select Problem</label>
-            <select 
-              value={selectedProblem}
-              onChange={(e) => setSelectedProblem(e.target.value)}
-              className="w-full p-3 rounded-xl border border-gray-300 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-teal-500 outline-none transition-all"
-            >
-              {problems?.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.id}. {p.title} ({p.difficulty})
-                </option>
-              ))}
-            </select>
-          </div>
+          <ProblemSelector 
+            problems={problems || []}
+            selectedProblemId={selectedProblem}
+            onSelect={setSelectedProblem}
+          />
 
           {/* Language Selection */}
           <div className="space-y-2">

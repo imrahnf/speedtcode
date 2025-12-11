@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { API_BASE_URL } from "@/config";
 import { Play, Settings, RefreshCw, Check } from "lucide-react";
 import useSWR from "swr";
+import ProblemSelector from "@/components/common/ProblemSelector";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -45,7 +46,7 @@ export default function HostControls({ onNextRound, currentProblemId, currentLan
 
   if (showSettings) {
     return (
-      <div className={`bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4 animate-in fade-in zoom-in-95 duration-200 ${compact ? 'absolute right-0 top-0 z-50 w-80' : ''}`}>
+      <div className={`bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4 animate-in fade-in zoom-in-95 duration-200 ${compact ? 'absolute right-0 top-0 z-50 w-96' : ''}`}>
         <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
           <Settings className="w-5 h-5" />
           Lobby Settings
@@ -53,21 +54,17 @@ export default function HostControls({ onNextRound, currentProblemId, currentLan
         
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Problem</label>
-            <select 
-              value={selectedProblem}
-              onChange={(e) => setSelectedProblem(e.target.value)}
-              className="w-full p-2 rounded-lg border border-gray-300 bg-gray-50 text-sm text-gray-900 font-medium"
-            >
-              {problems?.map((p: any) => (
-                <option key={p.id} value={p.id}>{p.title} ({p.difficulty})</option>
-              ))}
-            </select>
+            <ProblemSelector 
+              problems={problems || []}
+              selectedProblemId={selectedProblem}
+              onSelect={setSelectedProblem}
+              className="max-h-[300px] flex flex-col"
+            />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Language</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {problemDetails?.languages.map((lang: string) => (
                 <button
                   key={lang}
