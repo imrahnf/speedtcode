@@ -38,7 +38,7 @@ export default function ProfilePage() {
 
   if (loading || statsLoading) {
     return (
-      <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center text-teal-600">
+      <div className="min-h-screen flex items-center justify-center text-teal-600">
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );
@@ -50,7 +50,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#DDFFF7] text-black font-sans p-8">
+    <div className="min-h-screen font-sans p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         
                 <button 

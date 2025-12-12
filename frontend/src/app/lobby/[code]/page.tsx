@@ -270,7 +270,7 @@ export default function LobbyPage() {
 
   if (lobbyError || problemError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#DDFFF7] text-center p-4">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4  text-center p-4">
         <div className="bg-white/80 p-8 rounded-2xl shadow-xl border border-red-100">
           <h2 className="text-2xl font-bold text-red-500 mb-2">Lobby Not Found</h2>
           <p className="text-gray-600 mb-6">This lobby may have ended or does not exist.</p>
@@ -288,7 +288,7 @@ export default function LobbyPage() {
 
   if (!lobbyInfo || !problem) {
     return (
-      <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center text-teal-600">
+      <div className="min-h-screen  flex items-center justify-center text-teal-600">
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );
@@ -297,7 +297,7 @@ export default function LobbyPage() {
   // 0. CONNECTING STATE
   if (isJoined && !lobbyState) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#DDFFF7]">
+      <div className="min-h-screen flex items-center justify-center ">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
           <p className="font-mono text-gray-500">Connecting to lobby...</p>
@@ -309,7 +309,7 @@ export default function LobbyPage() {
   // 1. JOIN SCREEN
   if (!isJoined) {
     return (
-      <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center p-4 relative">
+      <div className="min-h-screen  flex items-center justify-center p-4 relative">
         <button 
           onClick={() => router.push("/")}
           className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-white/70 hover:bg-white rounded-lg transition-all text-gray-600 hover:text-black font-semibold"
@@ -398,7 +398,7 @@ export default function LobbyPage() {
     const countdown = lobbyState.start_time ? Math.ceil((lobbyState.start_time - now) / 1000) : 0;
     
     return (
-      <div className="min-h-screen bg-[#DDFFF7] flex relative">
+      <div className="min-h-screen flex relative">
         {/* Countdown Overlay */}
         {lobbyState.status === "starting" && (
            <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
@@ -562,7 +562,7 @@ export default function LobbyPage() {
   const isHost = lobbyInfo.hostId === userId;
 
   return (
-    <div className="min-h-screen bg-[#DDFFF7] flex">
+    <div className="min-h-screen  flex">
       <div className={`flex-1 flex flex-col transition-all duration-500 ${lobbyState?.status === 'racing' ? 'mr-0' : 'mr-80'}`}>
         {/* Race Header */}
         <div className="bg-white/80 backdrop-blur-md p-4 border-b border-white/20 flex justify-between items-center sticky top-0 z-50">

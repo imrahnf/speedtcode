@@ -82,13 +82,13 @@ export default function DynamicGamePage() {
   // Loading State
   // While SWR is fetching data, show spinner
   if (isLoading) return (
-    <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center text-teal-600">
+    <div className="min-h-screen  flex items-center justify-center text-teal-600">
       <Loader2 className="w-10 h-10 animate-spin" />
     </div>
   );
 
   if (error || !problem) return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#DDFFF7] text-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4  text-center p-4">
       <div className="bg-white/80 p-8 rounded-2xl shadow-xl border border-red-100">
         <h2 className="text-2xl font-bold text-red-500 mb-2">Problem Not Found</h2>
         <p className="text-gray-600 mb-6">Problem #{problemId} could not be loaded.</p>
@@ -103,14 +103,7 @@ export default function DynamicGamePage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#DDFFF7] text-black font-sans overflow-hidden relative">
-      
-      {/* Background Gradients (Matching Landing Page) */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-        <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
-      </div>
+    <div className="min-h-screen font-sans overflow-hidden relative">
 
       {/* Header */}
       <div className="relative z-10 p-6 flex items-center justify-between border-b border-white/20">

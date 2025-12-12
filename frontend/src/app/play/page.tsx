@@ -90,13 +90,13 @@ export default function PlayPage() {
   };
 
   if (isLoading) return (
-    <div className="min-h-screen bg-[#DDFFF7] flex items-center justify-center text-teal-600">
+    <div className="min-h-screen  flex items-center justify-center text-teal-600">
       <Loader2 className="w-10 h-10 animate-spin" />
     </div>
   );
 
   return (
-    <div className="h-screen bg-[#DDFFF7] text-black font-sans flex flex-col overflow-hidden">
+    <div className="h-screen  text-black font-sans flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md p-4 border-b border-white/50 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
@@ -283,8 +283,20 @@ export default function PlayPage() {
                 Top scores for <span className="font-bold text-gray-600">{problemDetails?.title}</span> ({selectedLanguage})
               </div>
               
-              {/* Real Entries */}
-              {leaderboardData?.entries?.length > 0 ? (
+              {/* Status Check */}
+              {leaderboardData?.status === "unavailable" ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+                  <div className="flex justify-center mb-2">
+                    <div className="p-2 bg-yellow-100 rounded-full">
+                      <Trophy className="w-4 h-4 text-yellow-600" />
+                    </div>
+                  </div>
+                  <h3 className="text-sm font-bold text-yellow-800 mb-1">Stats Offline</h3>
+                  <p className="text-xs text-yellow-700">
+                    Leaderboards are currently unavailable. You can still play!
+                  </p>
+                </div>
+              ) : leaderboardData?.entries?.length > 0 ? (
                 leaderboardData.entries.map((entry: any) => (
                   <div key={entry.rank} className="bg-white p-3 rounded-xl shadow-sm flex items-center gap-3">
                     <div className={`w-6 h-6 flex items-center justify-center font-bold text-sm ${
