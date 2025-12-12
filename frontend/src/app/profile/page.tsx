@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import useSWR from "swr";
 import { API_BASE_URL } from "@/config";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2, Trophy, Zap, Activity, Calendar, User, Search, Code2 } from "lucide-react";
+import { Loader2, Trophy, Zap, Activity, Calendar, User, Search, Code2, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -51,6 +51,14 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-[#DDFFF7] text-black font-sans p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         
+                <button 
+          onClick={() => router.push("/")}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-sm font-bold">Back</span>
+        </button>
+
         {/* Header Card */}
         <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/50 flex items-center gap-8 animate-in slide-in-from-bottom-4 duration-500">
           <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 p-1 shadow-lg">
@@ -65,6 +73,7 @@ export default function ProfilePage() {
             </div>
           </div>
           
+
           <div className="space-y-2">
             <h1 className="text-4xl font-black text-gray-900 tracking-tight">{user.username}</h1>
             <div className="flex items-center gap-2 text-gray-600 font-medium">
@@ -73,7 +82,7 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-
+                
         {/* Stats Grid */}
         {stats?.status === "unavailable" && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-r-lg mb-6" role="alert">
@@ -249,12 +258,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <button 
-          onClick={() => router.push("/")}
-          className="w-full py-4 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-lg"
-        >
-          Back to Home
-        </button>
+
 
       </div>
     </div>
