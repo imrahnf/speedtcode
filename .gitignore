@@ -1,7 +1,6 @@
 # .gcloudignore
 .git/
 .gitignore
-*.md
 .vscode/
 cloud-run-env.yaml
 
