@@ -1,3 +1,31 @@
+# .gcloudignore
+.git/
+.gitignore
+*.md
+.vscode/
+
+# Frontend (not needed for backend build)
+frontend/
+
+# Python
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+*.pyc
+__pycache__/
+
+# Node
+node_modules/
+.next/
+
+# Environment & secrets (using cloud-run-env.yaml for deployment)
+.env
+firebase-credentials.json
+
+# Docker
+.dockerignore
+
 backend/firebase-credentials.json
 firebase-credentials.json
 .env
@@ -57,7 +85,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+backend/lib/
 lib64/
 parts/
 sdist/
