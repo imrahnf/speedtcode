@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 import random
 from models.schemas import ResultSubmission
 from models.problem_manager import problem_manager
 from services.redis_service import redis_service
+from dependencies import get_current_user
 
 router = APIRouter()
 
@@ -22,7 +23,13 @@ def get_leaderboard(problem_id: str, language: str, top: int = 10):
 
 # Submit typing results
 @router.post("/api/results")
-def submit_results(result: ResultSubmission):
+def submit_results(result: ResultSubmission, user: dict = Depends(get_current_user)):
+    # 0. AUTH CHECK
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    else:
+        username = user["username"]
+
     # 1. INTEGRITY CHECKS
     problem = problem_manager.get_problem_metadata(result.problemId)
     if not problem:
@@ -71,7 +78,7 @@ def submit_results(result: ResultSubmission):
         )
 
     # Save to leaderboard
-    username = f"Guest-{random.randint(1000, 9999)}"
+    # username is already set above based on auth status
     
     # Calculate Score: WPM * (Accuracy/100)^2
     # This penalizes low accuracy significantly.
@@ -85,6 +92,10 @@ def submit_results(result: ResultSubmission):
         accuracy=result.accuracy,
         score=score
     )
+
+    # Update User Profile Stats (Only for Singleplayer)
+    if result.mode == "singleplayer":
+        redis_service.update_user_stats(username, result.wpm, result.accuracy)
 
     rank = redis_service.get_user_rank(result.problemId, result.language, username)
 

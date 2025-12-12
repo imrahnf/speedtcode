@@ -34,8 +34,8 @@ def get_lobby(lobby_id: str):
 
 # WebSocket endpoint for lobby interactions
 @router.websocket("/ws/lobby/{lobby_id}/{user_id}/{username}")
-async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, username: str):
-    connected = await lobby_manager.connect(websocket, lobby_id, user_id, username)
+async def websocket_endpoint(websocket: WebSocket, lobby_id: str, user_id: str, username: str, photo_url: str = None):
+    connected = await lobby_manager.connect(websocket, lobby_id, user_id, username, photo_url)
     if not connected:
         return
         

@@ -15,6 +15,7 @@ class ResultSubmission(BaseModel):
     problemId: str
     rawLength: int
     language: str
+    mode: str = "singleplayer"
 
 class LobbyCreate(BaseModel):
     hostId: str

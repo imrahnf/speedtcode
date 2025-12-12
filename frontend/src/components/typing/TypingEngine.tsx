@@ -18,6 +18,8 @@ interface TypingEngineProps {
   maxLinesVisible?: number;
   onMaxLinesChange?: (lines: number) => void;
   showResults?: boolean;
+  user?: any; // TODO: Use proper User type
+  onLoginRequest?: () => void;
 }
 
 interface GameStats {
@@ -51,7 +53,9 @@ export default function TypingEngine({
   onProgress,
   maxLinesVisible = 10, 
   onMaxLinesChange,
-  showResults = true
+  showResults = true,
+  user,
+  onLoginRequest
 }: TypingEngineProps) {
   
   // --- CORE STATE ---
@@ -328,16 +332,18 @@ export default function TypingEngine({
     if (!isFinished || !finalStats || hasSubmitted) return;
     const payload: GameResultPayload = { ...finalStats, problemId, rawLength: RAW_CODE.length, language };
     if (onFinish) onFinish(finalStats);
-    const submit = async () => {
-      if (onSubmitStats) {
+    
+    // Submit stats if handler provided (Auth check should be in handler if needed)
+    if (onSubmitStats) {
+      const submit = async () => {
         try {
           const rank = await onSubmitStats(payload);
           if (typeof rank === "number") setUserRank(rank);
         } catch (err) { console.error("Failed to submit stats", err); }
-      }
-    };
-    submit();
-    setHasSubmitted(true);
+      };
+      submit();
+      setHasSubmitted(true);
+    }
   }, [isFinished, finalStats, hasSubmitted, onFinish, onSubmitStats, problemId, RAW_CODE.length]);
 
   // --- RENDER PREP ---
@@ -692,11 +698,49 @@ export default function TypingEngine({
                 <div>
                   <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Rank</div>
                   <div className="text-2xl font-black">
-                    {userRank !== null ? `#${userRank}` : <span className="text-sm text-gray-400 animate-pulse">Calculating...</span>}
+                    {user ? (
+                      userRank !== null ? `#${userRank}` : <span className="text-sm text-gray-400 animate-pulse">Calculating...</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">Guest</span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* User Profile Card or Login Prompt */}
+            <div className="w-full bg-white/50 rounded-lg p-3 flex items-center justify-between">
+              {user ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold text-lg">
+                        {user.username[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-800">{user.username}</div>
+                    <div className="text-xs text-gray-500">Score saved to leaderboard</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between w-full">
+                  <div className="text-sm text-gray-600">Sign in to save your score to the leaderboard!</div>
+                  {onLoginRequest && (
+                    <button 
+                      onClick={onLoginRequest}
+                      className="px-4 py-2 bg-black text-white text-xs font-bold rounded hover:bg-gray-800 transition-all"
+                    >
+                      Sign In
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button 
               onClick={() => {
                 setIsFinished(false);

@@ -14,13 +14,9 @@ class ProblemManager:
         """
         print(f"Loading problems from {self.problems_dir}...")
         
-        # Curated Problem List
+        # Curated Problem List (add more ilater)
         ALLOWED_IDS = {"0001", "0002"}
         curated_mode = True
-
-        # Check for curated mode
-        if os.environ.get("CURATED_MODE", "false").lower() == "true":
-             curated_mode = True
 
         allowed_problems = ALLOWED_IDS
         if curated_mode:
@@ -72,17 +68,15 @@ class ProblemManager:
                         "id": prob_id,
                         "title": title,
                         "slug": slug,
-                        "difficulty": "Medium", # Default difficulty
+                        "difficulty": "Medium", # Default difficulty (TODO: Improve later)
                         "languages": [],
                         "paths": {}
                     }
 
                 temp_index[prob_id]["languages"].append(lang)
                 temp_index[prob_id]["paths"][lang] = os.path.join(lang_dir, filename)
-
-        # Filter out problems that don't have at least one language
-        self.problems = dict(sorted(temp_index.items()))
-        print(f"Loaded {len(self.problems)} problems.")
+        
+        self.problems = temp_index
 
     def get_problem_metadata(self, problem_id: str) -> Optional[dict]:
         """Returns the metadata (title, languages) without the content."""

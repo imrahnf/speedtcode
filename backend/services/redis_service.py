@@ -23,6 +23,64 @@ class RedisService:
         else:
             logger.info("REDIS_URL not set")
     
+    def update_user_stats(self, username: str, wpm: float, accuracy: float):
+        """
+        Update user profile stats (total races, avg wpm, max wpm).
+        """
+        if not self.enabled:
+            return
+
+        user_key = f"user:{username}:stats"
+        
+        try:
+            # Get current stats
+            stats = self.client.hgetall(user_key)
+            
+            races = int(stats.get("races_completed", 0))
+            current_avg_wpm = float(stats.get("avg_wpm", 0))
+            max_wpm = float(stats.get("max_wpm", 0))
+            
+            # Calculate new stats
+            new_races = races + 1
+            # Rolling average: ((old_avg * old_count) + new_val) / new_count
+            new_avg_wpm = ((current_avg_wpm * races) + wpm) / new_races
+            new_max_wpm = max(max_wpm, wpm)
+            
+            self.client.hset(user_key, mapping={
+                "races_completed": new_races,
+                "avg_wpm": new_avg_wpm,
+                "max_wpm": new_max_wpm,
+                "last_active": str(datetime.now())
+            })
+        except Exception as e:
+            logger.error(f"Failed to update user stats: {e}")
+
+    def get_user_stats(self, username: str):
+        """
+        Get user profile stats.
+        """
+        if not self.enabled:
+            return None
+            
+        user_key = f"user:{username}:stats"
+        try:
+            stats = self.client.hgetall(user_key)
+            if not stats:
+                return {
+                    "races_completed": 0,
+                    "avg_wpm": 0,
+                    "max_wpm": 0
+                }
+            
+            return {
+                "races_completed": int(stats.get("races_completed", 0)),
+                "avg_wpm": float(stats.get("avg_wpm", 0)),
+                "max_wpm": float(stats.get("max_wpm", 0))
+            }
+        except Exception as e:
+            logger.error(f"Failed to get user stats: {e}")
+            return None
+
     def add_score(self, problem_id: str, language: str, username: str, wpm: float, accuracy: float, score: float):
         """
         Add score to leaderboard using ZSET for ranking and Hash for details.
@@ -65,6 +123,32 @@ class RedisService:
             logger.error(f"Failed to get user rank: {e}")
             return None
 
+    def get_user_problem_stats(self, problem_id: str, language: str, username: str):
+        """
+        Get a user's best performance for a specific problem.
+        """
+        if not self.enabled:
+            return None
+            
+        details_key = f"score_details:{problem_id}:{language}:{username}"
+        try:
+            details = self.client.hgetall(details_key)
+            if not details:
+                return None
+            
+            rank = self.get_user_rank(problem_id, language, username)
+            
+            return {
+                "wpm": float(details.get("wpm", 0)),
+                "accuracy": float(details.get("accuracy", 0)),
+                "score": float(details.get("score", 0)),
+                "timestamp": details.get("timestamp"),
+                "rank": rank
+            }
+        except Exception as e:
+            logger.error(f"Failed to get user problem stats: {e}")
+            return None
+
     def get_leaderboard(self, problem_id: str, language: str, limit: int = 50):
         # Retrieve top scores from leaderboard
         if not self.enabled:
@@ -79,7 +163,7 @@ class RedisService:
                 details_key = f"score_details:{problem_id}:{language}:{username}"
                 details = self.client.hgetall(details_key)
                 
-                # Fallback for legacy data (where score was just wpm)
+                # Fallback for og data (where score was just wpm)
                 wpm = float(details.get("wpm", score))
                 accuracy = float(details.get("accuracy", 100.0))
 

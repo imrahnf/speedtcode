@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation"; // 
 import TypingEngine from "@/components/typing/TypingEngine";
 import { Loader2, ArrowLeft, RefreshCw, Trophy } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // Fetcher
 const fetcher = (url: string) => fetch(url).then((res) => {
@@ -19,6 +20,7 @@ export default function DynamicGamePage() {
   const params = useParams();
   const problemId = params.id as string; 
   const router = useRouter();
+  const { user, login, logout } = useAuth();
   const [selectedLanguage, setSelectedLanguage] = useState<string>("python");
   const [maxLinesVisible, setMaxLinesVisible] = useState<number>(10);
 
@@ -50,31 +52,32 @@ export default function DynamicGamePage() {
   };
 
   const handleSubmitStats = useCallback(async (payload: any) => {
-    // TODO: inject auth token when available
-    // const token = await getAccessToken();
+    if (!user) return;
+
+    const token = await user.getToken();
+    
     const payloadWithLanguage = {
       ...payload,
       language: payload.language || selectedLanguage,
+      mode: "singleplayer"
     };
     try {
       const url = `${API_BASE_URL}/api/results`;
-      console.log("Submitting stats to:", url, payloadWithLanguage);
       
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(payloadWithLanguage),
       });
-      console.log("Submitted stats", { status: res.status, ok: res.ok });
       const data = await res.json();
       return data.rank;
     } catch (err) {
       console.error("Failed to submit results", err);
     }
-  }, [selectedLanguage]);
+  }, [selectedLanguage, user]);
 
   // Loading State
   // While SWR is fetching data, show spinner
@@ -140,7 +143,32 @@ export default function DynamicGamePage() {
             })}
           </div>
         </div>
-        <div className="w-16"></div>
+        <div className="flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <button onClick={() => router.push("/profile")} className="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">{user.username}</button>
+                <button onClick={logout} className="text-xs text-red-500 hover:underline block ml-auto">Sign Out</button>
+              </div>
+              <button onClick={() => router.push("/profile")} className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold">
+                    {user.username[0].toUpperCase()}
+                  </div>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="px-4 py-2 bg-black text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-all"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Game Area */}
@@ -155,6 +183,8 @@ export default function DynamicGamePage() {
             onMaxLinesChange={handleMaxLinesChange}
             onFinish={() => {}}
             onSubmitStats={handleSubmitStats}
+            user={user}
+            onLoginRequest={login}
           />
         </div>
       </div>

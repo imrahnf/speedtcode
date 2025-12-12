@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { ArrowLeft, Loader2, Trophy } from "lucide-react";
 import ProblemSelector from "@/components/common/ProblemSelector";
+import { useAuth } from "@/context/AuthContext";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function CreateLobbyPage() {
   const router = useRouter();
+  const { user, login, logout } = useAuth();
   const [selectedProblem, setSelectedProblem] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("python");
   const [isCreating, setIsCreating] = useState(false);
@@ -44,11 +46,13 @@ export default function CreateLobbyPage() {
   const handleCreate = async () => {
     setIsCreating(true);
     try {
-      // Generate a random host ID for now (replace with auth later)
-      const hostId = "host_" + Math.random().toString(36).substr(2, 9);
+      // Use auth user if available, otherwise generate random
+      const hostId = user ? user.uid : "host_" + Math.random().toString(36).substr(2, 9);
+      
       localStorage.setItem("userId", hostId);
-      // Do not force "Host" username
-      // localStorage.setItem("username", "Host");
+      if (user) {
+        localStorage.setItem("username", user.username);
+      }
 
       const res = await fetch(`${API_BASE_URL}/api/lobbies`, {
         method: "POST",
@@ -93,7 +97,34 @@ export default function CreateLobbyPage() {
           <ArrowLeft className="w-5 h-5" />
           <span>Back</span>
         </button>
-        <div></div>
+        
+        {/* Auth Status */}
+        <div className="flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <button onClick={() => router.push("/profile")} className="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">{user.username}</button>
+                <button onClick={logout} className="text-xs text-red-500 hover:underline block ml-auto">Sign Out</button>
+              </div>
+              <button onClick={() => router.push("/profile")} className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold">
+                    {user.username[0].toUpperCase()}
+                  </div>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="px-4 py-2 bg-black text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-all"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Content */}

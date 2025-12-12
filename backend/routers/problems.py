@@ -13,7 +13,6 @@ def get_problem(problem_id: str):
     if not meta:
         raise HTTPException(status_code=404, detail="Problem not found")
     
-    # Construct the response with content for all available languages
     content_map = {}
     for lang in meta["languages"]:
         code = problem_manager.get_problem_content(problem_id, lang)

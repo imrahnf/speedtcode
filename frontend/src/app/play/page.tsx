@@ -6,11 +6,13 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Trophy, Code2, Play, RefreshCw } from "lucide-react";
 import TypingEngine from "@/components/typing/TypingEngine";
+import { useAuth } from "@/context/AuthContext";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function PlayPage() {
   const router = useRouter();
+  const { user, login, logout } = useAuth();
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("python");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -60,6 +62,9 @@ export default function PlayPage() {
   }, [selectedProblemId, selectedLanguage]);
 
   const handleSubmitStats = useCallback(async (payload: any) => {
+    if (!user) return;
+
+    const token = await user.getToken();
     const payloadWithLanguage = {
       ...payload,
       language: payload.language || selectedLanguage,
@@ -69,6 +74,7 @@ export default function PlayPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(payloadWithLanguage),
       });
@@ -77,7 +83,7 @@ export default function PlayPage() {
     } catch (err) {
       console.error("Failed to submit results", err);
     }
-  }, [selectedLanguage]);
+  }, [selectedLanguage, user]);
 
   const handleRestart = () => {
     setGameKey(prev => prev + 1);
@@ -104,6 +110,34 @@ export default function PlayPage() {
             <Code2 className="w-6 h-6 text-teal-600" />
             Play
           </h1>
+        </div>
+
+        {/* Auth Status */}
+        <div className="flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <button onClick={() => router.push("/profile")} className="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">{user.username}</button>
+                <button onClick={logout} className="text-xs text-red-500 hover:underline block ml-auto">Sign Out</button>
+              </div>
+              <button onClick={() => router.push("/profile")} className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold">
+                    {user.username[0].toUpperCase()}
+                  </div>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="px-4 py-2 bg-black text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-all"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </div>
 
@@ -206,6 +240,8 @@ export default function PlayPage() {
                     problemId={selectedProblemId!}
                     language={selectedLanguage}
                     onSubmitStats={handleSubmitStats}
+                    user={user}
+                    onLoginRequest={login}
                   />
                 </div>
               ) : (

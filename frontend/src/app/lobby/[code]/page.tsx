@@ -7,6 +7,7 @@ import useSWR from "swr";
 import TypingEngine from "@/components/typing/TypingEngine";
 import LobbySidebar from "@/components/lobby/LobbySidebar";
 import HostControls from "@/components/lobby/HostControls";
+import { useAuth } from "@/context/AuthContext";
 import { Loader2, Copy, Users, Play, Trophy, Crown, ArrowLeft, LogOut, X } from "lucide-react";
 
 const fetcher = async (url: string) => {
@@ -18,6 +19,7 @@ const fetcher = async (url: string) => {
 export default function LobbyPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, login, logout } = useAuth();
   const lobbyId = params.code as string;
   
   const [socket, setSocket] = useState<WebSocket | null>(null);
@@ -55,6 +57,16 @@ export default function LobbyPage() {
 
   // Initialize User
   useEffect(() => {
+    if (user) {
+      setUserId(user.uid);
+      setUsername(user.username);
+      // Auto-join if logged in
+      if (!isJoined) {
+        setIsJoined(true);
+      }
+      return;
+    }
+
     let storedId = localStorage.getItem("userId");
     if (!storedId) {
       storedId = "user_" + Math.random().toString(36).substr(2, 9);
@@ -67,7 +79,7 @@ export default function LobbyPage() {
     if (storedName && storedName !== "Host") {
       setUsername(storedName);
     }
-  }, []);
+  }, [user]);
 
   // WebSocket Connection
   useEffect(() => {
@@ -84,7 +96,11 @@ export default function LobbyPage() {
 
       console.log("Connecting to WebSocket...");
       // Encode username to handle special characters/spaces
-      ws = new WebSocket(`${WS_BASE_URL}/ws/lobby/${lobbyId}/${userId}/${encodeURIComponent(username)}`);
+      let wsUrl = `${WS_BASE_URL}/ws/lobby/${lobbyId}/${userId}/${encodeURIComponent(username)}`;
+      if (user?.photoURL) {
+        wsUrl += `?photo_url=${encodeURIComponent(user.photoURL)}`;
+      }
+      ws = new WebSocket(wsUrl);
       
       // Connection timeout safety
       connectionTimeout = setTimeout(() => {
@@ -303,6 +319,34 @@ export default function LobbyPage() {
           <span>Back</span>
         </button>
 
+        {/* Auth Status */}
+        <div className="absolute top-6 right-6 flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <button onClick={() => router.push("/profile")} className="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">{user.username}</button>
+                <button onClick={logout} className="text-xs text-red-500 hover:underline block ml-auto">Sign Out</button>
+              </div>
+              <button onClick={() => router.push("/profile")} className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold">
+                    {user.username[0].toUpperCase()}
+                  </div>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="px-4 py-2 bg-black text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-all"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
+
         <div className="bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-xl max-w-md w-full border border-white/50 text-center space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Join Lobby</h1>
@@ -376,6 +420,34 @@ export default function LobbyPage() {
               </p>
             </div>
             <div className="flex gap-4 items-center">
+               {/* Auth Status */}
+               <div className="flex items-center gap-4 mr-4 border-r border-gray-300 pr-4">
+                  {user ? (
+                    <div className="flex items-center gap-3">
+                      <div className="text-right hidden sm:block">
+                        <button onClick={() => router.push("/profile")} className="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">{user.username}</button>
+                        <button onClick={logout} className="text-xs text-red-500 hover:underline block ml-auto">Sign Out</button>
+                      </div>
+                      <button onClick={() => router.push("/profile")} className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+                        {user.photoURL ? (
+                          <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold">
+                            {user.username[0].toUpperCase()}
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={login}
+                      className="px-4 py-2 bg-black text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-all"
+                    >
+                      Sign In
+                    </button>
+                  )}
+               </div>
+
                <div className="px-4 py-2 bg-white rounded-lg border border-gray-200 font-mono text-sm flex items-center gap-2 text-gray-800">
                  <span className="text-gray-500">CODE:</span>
                  <span className="font-bold select-all">{lobbyId}</span>
@@ -437,8 +509,12 @@ export default function LobbyPage() {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {lobbyState.participants.map((p: any) => (
                   <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg bg-white/50 ${!p.connected ? 'opacity-50 grayscale' : ''}`}>
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold text-xs">
-                      {p.username[0].toUpperCase()}
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold text-xs overflow-hidden">
+                      {p.photoURL ? (
+                        <img src={p.photoURL} alt={p.username} className="w-full h-full object-cover" />
+                      ) : (
+                        p.username[0].toUpperCase()
+                      )}
                     </div>
                     <span className={`font-medium flex-1 ${p.id === userId ? 'text-teal-700 font-bold' : 'text-gray-800'}`}>
                       {p.username} {p.id === userId && "(You)"} {p.connected === false && "(Disconnected)"}
@@ -505,6 +581,30 @@ export default function LobbyPage() {
             </div>
           </div>
           <div className="flex gap-3 items-center">
+             {/* Auth Status */}
+             <div className="flex items-center gap-4 mr-4 border-r border-gray-300 pr-4">
+                {user ? (
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => router.push("/profile")} className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold text-xs">
+                          {user.username[0].toUpperCase()}
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={login}
+                    className="px-3 py-1 bg-black text-white text-xs font-bold rounded hover:bg-gray-800 transition-all"
+                  >
+                    Sign In
+                  </button>
+                )}
+             </div>
+
              {isHost && lobbyState?.status === "racing" && (
                <button 
                  onClick={handleForceEnd}
@@ -515,8 +615,12 @@ export default function LobbyPage() {
              )}
              {lobbyState?.participants.map((p: any) => (
                <div key={p.id} className={`flex flex-col items-center gap-1 ${!p.connected ? 'opacity-40' : ''}`}>
-                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all relative ${p.finished ? 'bg-green-500 border-green-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`} title={p.username}>
-                   <span className="z-10">{p.finished ? '✓' : p.username[0].toUpperCase()}</span>
+                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all relative overflow-hidden ${p.finished ? 'bg-green-500 border-green-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`} title={p.username}>
+                   <span className="z-10">
+                     {p.finished ? '✓' : (
+                       p.photoURL ? <img src={p.photoURL} alt={p.username} className="w-full h-full object-cover" /> : p.username[0].toUpperCase()
+                     )}
+                   </span>
                    {!p.finished && (
                       <svg className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90" viewBox="0 0 36 36">
                         <path
@@ -574,20 +678,31 @@ export default function LobbyPage() {
                             <div className={`w-8 h-8 flex items-center justify-center font-black text-lg ${p.finished ? (p.rank === 1 ? 'text-yellow-500' : p.rank === 2 ? 'text-gray-400' : p.rank === 3 ? 'text-orange-400' : 'text-gray-300') : 'text-gray-200'}`}>
                               {p.finished ? `#${p.rank}` : '•'}
                             </div>
-                            <div className="flex-1">
-                              <div className={`font-bold text-lg ${p.id === userId ? 'text-teal-900' : 'text-gray-900'}`}>
-                                {p.username} {p.id === userId && "(You)"}
+                            <div className="flex-1 flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden shrink-0">
+                                {p.photoURL ? (
+                                  <img src={p.photoURL} alt={p.username} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold text-xs">
+                                    {p.username[0].toUpperCase()}
+                                  </div>
+                                )}
                               </div>
-                              {p.finished ? (
-                                <div className="text-xs text-gray-500 font-mono">{(p.timeMs / 1000).toFixed(2)}s</div>
-                              ) : (
-                                <div className="w-full max-w-[200px] h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
-                                  <div 
-                                    className="h-full bg-teal-500 transition-all duration-500 ease-out"
-                                    style={{ width: `${p.progress}%` }}
-                                  />
+                              <div className="flex-1">
+                                <div className={`font-bold text-lg ${p.id === userId ? 'text-teal-900' : 'text-gray-900'}`}>
+                                  {p.username} {p.id === userId && "(You)"}
                                 </div>
-                              )}
+                                {p.finished ? (
+                                  <div className="text-xs text-gray-500 font-mono">{(p.timeMs / 1000).toFixed(2)}s</div>
+                                ) : (
+                                  <div className="w-full max-w-[200px] h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                                    <div 
+                                      className="h-full bg-teal-500 transition-all duration-500 ease-out"
+                                      style={{ width: `${p.progress}%` }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             <div className="text-right">
                               <div className="font-black text-xl text-gray-900">{p.wpm} <span className="text-xs font-medium text-gray-400">WPM</span></div>
@@ -637,6 +752,7 @@ export default function LobbyPage() {
                     onSubmitStats={handleLobbySubmit}
                     onProgress={handleProgress}
                     showResults={false}
+                    user={user}
                   />
                 )}
               </>

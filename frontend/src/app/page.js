@@ -8,8 +8,11 @@ import { useRouter } from "next/navigation";
 import { FaGithub } from "react-icons/fa";
 import { Play, Terminal, Users, Plus, ArrowRight } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
+
 export default function LandingPage() {
   const router = useRouter();
+  const { login, logout, user } = useAuth();
   const [text, setText] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const fullText = 'print("Hello, Speed(t)Code!")';
@@ -36,6 +39,34 @@ export default function LandingPage() {
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
         <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+      </div>
+
+      {/* Auth Status */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
+        {user ? (
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <button onClick={() => router.push("/profile")} className="text-sm font-bold text-gray-900 hover:text-teal-600 transition-colors">{user.username}</button>
+              <button onClick={logout} className="text-xs text-red-500 hover:underline block ml-auto">Sign Out</button>
+            </div>
+            <button onClick={() => router.push("/profile")} className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 hover:ring-2 hover:ring-teal-500 transition-all">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold">
+                  {user.username[0].toUpperCase()}
+                </div>
+              )}
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={login}
+            className="px-4 py-2 bg-black text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-all"
+          >
+            Sign In
+          </button>
+        )}
       </div>
 
       {/* Main Content */}
@@ -136,10 +167,22 @@ export default function LandingPage() {
           </div>
 
           <div className="flex gap-4 w-full">
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#24292e] text-white border border-transparent rounded-lg hover:bg-[#2f363d] transition-all shadow-sm">
-              <FaGithub className="w-5 h-5" />
-              <span className="font-medium">Continue with GitHub</span>
-            </button>
+            {user ? (
+              <button 
+                onClick={() => router.push("/play")}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white border border-transparent rounded-lg hover:bg-teal-700 transition-all shadow-sm"
+              >
+                <span className="font-medium">Welcome back, {user.username}!</span>
+              </button>
+            ) : (
+              <button 
+                onClick={login}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#24292e] text-white border border-transparent rounded-lg hover:bg-[#2f363d] transition-all shadow-sm"
+              >
+                <FaGithub className="w-5 h-5" />
+                <span className="font-medium">Continue with GitHub</span>
+              </button>
+            )}
           </div>
         </motion.div>
 

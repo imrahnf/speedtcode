@@ -38,7 +38,7 @@ class LobbyManager:
         }
         return lobby_id
 
-    async def connect(self, websocket: WebSocket, lobby_id: str, user_id: str, username: str):
+    async def connect(self, websocket: WebSocket, lobby_id: str, user_id: str, username: str, photo_url: str = None):
         await websocket.accept()
         lobby = self.lobbies.get(lobby_id)
         if not lobby:
@@ -55,6 +55,7 @@ class LobbyManager:
         if user_id not in lobby["participants"]:
             lobby["participants"][user_id] = {
                 "username": username,
+                "photoURL": photo_url,
                 "ready": False,
                 "progress": 0,
                 "wpm": 0,
@@ -66,6 +67,8 @@ class LobbyManager:
         else:
             # Update username just in case
             lobby["participants"][user_id]["username"] = username
+            if photo_url:
+                lobby["participants"][user_id]["photoURL"] = photo_url
             lobby["participants"][user_id]["connected"] = True
             lobby["participants"][user_id]["last_seen"] = datetime.now()
         
@@ -190,6 +193,9 @@ class LobbyManager:
                     # Keep existing stats or set to 0/DNF if needed
             
             await self.broadcast_state(lobby_id)
+            
+            # Trigger auto-return countdown immediately
+            asyncio.create_task(self._auto_return_countdown(lobby_id))
 
     async def update_settings(self, lobby_id: str, user_id: str, problem_id: str, language: str):
         lobby = self.lobbies.get(lobby_id)
@@ -232,6 +238,7 @@ class LobbyManager:
                 active_participants = [u for u in lobby["participants"].values() if u["connected"]]
                 if all(u["finished"] for u in active_participants):
                     # Start auto-return countdown
+                    # Use asyncio.create_task to run it in background without blocking
                     asyncio.create_task(self._auto_return_countdown(lobby_id))
 
     async def _auto_return_countdown(self, lobby_id: str):
@@ -251,13 +258,12 @@ class LobbyManager:
             if "next_round_countdown" not in lobby: return 
 
             lobby["next_round_countdown"] = i
-            # Only broadcast every second if needed, or just let client handle it?
-            # Better to broadcast to keep sync
             await self.broadcast_state(lobby_id)
         
         # Time's up - Reset to lobby
         # We need the host_id to call reset_round, or just call it internally
         if lobby:
+            # Pass None as user_id to bypass host check since this is system action
             await self.reset_round(lobby_id, lobby["host_id"])
 
     async def cancel_auto_return(self, lobby_id: str, user_id: str):
