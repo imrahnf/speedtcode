@@ -363,26 +363,120 @@ export default function TypingEngine({
       
 
 
-      {/* 📊 LIVE HUD */}
-      <div className="flex justify-between items-center bg-white/20 backdrop-blur-md p-4 rounded-lg border border-white/30 text-gray-800 font-mono text-sm shadow-lg">
-        <div className="flex gap-6">
-          <div className="flex items-center gap-2">
-            <Timer className="w-4 h-4 text-blue-600" />
-            <span>{(elapsedTime / 1000).toFixed(1)}s</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-yellow-600" />
-            <span>{currentWpm} WPM</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-teal-600" />
-            <span>{currentAccuracy}%</span>
+      {/* 📊 LIVE HUD or RESULTS */}
+      {showResults && isFinished && finalStats ? (
+        <div className="bg-white/20 backdrop-blur-md rounded-lg p-6 border border-white/30 shadow-lg animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center justify-between gap-8 flex-wrap">
+            <div className="flex gap-8 font-mono text-sm font-bold text-gray-800">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-yellow-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">WPM</div>
+                  <div className="text-2xl font-black">{finalStats.wpm}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-green-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Accuracy</div>
+                  <div className="text-2xl font-black">{finalStats.accuracy}%</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Timer className="w-5 h-5 text-blue-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Time</div>
+                  <div className="text-2xl font-black">{(finalStats.timeMs / 1000).toFixed(1)}s</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-teal-600" />
+                <div>
+                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Rank</div>
+                  <div className="text-2xl font-black">
+                    {user ? (
+                      userRank !== null ? `#${userRank}` : <span className="text-sm text-gray-400 animate-pulse">Calculating...</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">Guest</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* User Profile Card or Login Prompt */}
+            <div className="w-full bg-white/50 rounded-lg p-3 flex items-center justify-between">
+              {user ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold text-lg">
+                        {user.username[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-800">{user.username}</div>
+                    <div className="text-xs text-gray-500">Score saved to leaderboard</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between w-full">
+                  <div className="text-sm text-gray-600">Sign in to save your score to the leaderboard!</div>
+                  {onLoginRequest && (
+                    <button 
+                      onClick={onLoginRequest}
+                      className="px-4 py-2 bg-black text-white text-xs font-bold rounded hover:bg-gray-800 transition-all"
+                    >
+                      Sign In
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button 
+              onClick={() => {
+                setIsFinished(false);
+                setFinalStats(null);
+                setUserInput("");
+                setStartTime(null);
+                setElapsedTime(0);
+                setCurrentWpm(0);
+                setCurrentAccuracy(100);
+                setHasSubmitted(false);
+                setUserRank(null);
+                if (inputRef.current) inputRef.current.value = "";
+              }}
+              className="px-6 py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-all text-sm whitespace-nowrap shadow-lg"
+            >
+              Play Again
+            </button>
           </div>
         </div>
-        <div className="opacity-70">
-          {userInput.length} / {GAME_CODE.length} chars
+      ) : (
+        <div className="flex justify-between items-center bg-white/20 backdrop-blur-md p-4 rounded-lg border border-white/30 text-gray-800 font-mono text-sm shadow-lg">
+          <div className="flex gap-6">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-blue-600" />
+              <span>{(elapsedTime / 1000).toFixed(1)}s</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-yellow-600" />
+              <span>{currentWpm} WPM</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-teal-600" />
+              <span>{currentAccuracy}%</span>
+            </div>
+          </div>
+          <div className="opacity-70">
+            {userInput.length} / {GAME_CODE.length} chars
+          </div>
         </div>
-      </div>
+      )}
 
       {/* CONTROLS TOOLBAR */}
       <div className="flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md rounded-lg border border-white/30 text-gray-800 font-mono text-xs shadow-lg z-20">
@@ -667,100 +761,7 @@ export default function TypingEngine({
         </div>
       </div>
 
-      {/* RESULTS CARD (Same as before) */}
-      {showResults && isFinished && finalStats && (
-        <div className="bg-white/20 backdrop-blur-md rounded-lg p-6 border border-white/30 shadow-lg animate-in fade-in slide-in-from-bottom-4">
-          <div className="flex items-center justify-between gap-8 flex-wrap">
-            <div className="flex gap-8 font-mono text-sm font-bold text-gray-800">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-yellow-600" />
-                <div>
-                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">WPM</div>
-                  <div className="text-2xl font-black">{finalStats.wpm}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-green-600" />
-                <div>
-                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Accuracy</div>
-                  <div className="text-2xl font-black">{finalStats.accuracy}%</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Timer className="w-5 h-5 text-blue-600" />
-                <div>
-                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Time</div>
-                  <div className="text-2xl font-black">{(finalStats.timeMs / 1000).toFixed(1)}s</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-teal-600" />
-                <div>
-                  <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Rank</div>
-                  <div className="text-2xl font-black">
-                    {user ? (
-                      userRank !== null ? `#${userRank}` : <span className="text-sm text-gray-400 animate-pulse">Calculating...</span>
-                    ) : (
-                      <span className="text-sm text-gray-400">Guest</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* User Profile Card or Login Prompt */}
-            <div className="w-full bg-white/50 rounded-lg p-3 flex items-center justify-between">
-              {user ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-teal-600 text-white font-bold text-lg">
-                        {user.username[0].toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-800">{user.username}</div>
-                    <div className="text-xs text-gray-500">Score saved to leaderboard</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between w-full">
-                  <div className="text-sm text-gray-600">Sign in to save your score to the leaderboard!</div>
-                  {onLoginRequest && (
-                    <button 
-                      onClick={onLoginRequest}
-                      className="px-4 py-2 bg-black text-white text-xs font-bold rounded hover:bg-gray-800 transition-all"
-                    >
-                      Sign In
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <button 
-              onClick={() => {
-                setIsFinished(false);
-                setFinalStats(null);
-                setUserInput("");
-                setStartTime(null);
-                setElapsedTime(0);
-                setCurrentWpm(0);
-                setCurrentAccuracy(100);
-                setHasSubmitted(false);
-                setUserRank(null);
-                if (inputRef.current) inputRef.current.value = "";
-              }}
-              className="px-6 py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-all text-sm whitespace-nowrap shadow-lg"
-            >
-              Play Again
-            </button>
-          </div>
-        </div>
-      )}
       
       {/* GLOBAL STYLE FOR PUMP EFFECT */}
       <style jsx global>{`
