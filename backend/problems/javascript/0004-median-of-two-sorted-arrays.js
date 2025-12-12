@@ -1,9 +1,3 @@
-/**
- * @param {number[]} nums1
- * @param {number[]} nums2
- * Time O(log(N * M)) | Space O(N)
- * @return {number}
- */
 var findMedianSortedArrays = function (nums1, nums2) {
     const canSwap = nums2.length < nums1.length;
     if (canSwap) [nums1, nums2] = [nums2, nums1];

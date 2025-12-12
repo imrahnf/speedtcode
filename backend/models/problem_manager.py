@@ -15,7 +15,7 @@ class ProblemManager:
         print(f"Loading problems from {self.problems_dir}...")
         
         # Curated Problem List (add more ilater)
-        ALLOWED_IDS = {"0001", "0002"}
+        ALLOWED_IDS = {"0001", "0002", "0003", "0004"}
         curated_mode = True
 
         allowed_problems = ALLOWED_IDS
