@@ -4,9 +4,6 @@
 *.md
 .vscode/
 
-# Frontend (not needed for backend build)
-frontend/
-
 # Python
 backend/venv/
 backend/__pycache__/
