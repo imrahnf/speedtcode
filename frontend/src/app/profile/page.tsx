@@ -75,6 +75,13 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats Grid */}
+        {stats?.status === "unavailable" && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-r-lg mb-6" role="alert">
+            <p className="font-bold">Stats Unavailable</p>
+            <p>Leaderboards and statistics are currently offline. You can still play, but your stats won't be saved.</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Races Completed */}
           <div className="bg-white/60 backdrop-blur-sm p-6 rounded-2xl border border-white/50 shadow-sm hover:shadow-md transition-all group">
@@ -199,7 +206,11 @@ export default function ProfilePage() {
                 </div>
 
                 {problemStats ? (
-                  problemStats.found ? (
+                  problemStats.status === "unavailable" ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>Stats service is currently unavailable.</p>
+                    </div>
+                  ) : problemStats.found ? (
                     <div className="grid grid-cols-3 gap-4">
                       <div className="text-center p-4 bg-white rounded-xl shadow-sm">
                         <div className="text-xs text-gray-500 uppercase font-bold mb-1">Speed</div>

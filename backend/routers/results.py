@@ -11,6 +11,14 @@ router = APIRouter()
 @router.get("/api/leaderboard/{problem_id}")
 def get_leaderboard(problem_id: str, language: str, top: int = 10):
     # Fetch gloabal leaderboard from Redis
+    if not redis_service.enabled:
+        return {
+            "problemId": problem_id,
+            "language": language,
+            "count": 0,
+            "entries": [],
+            "status": "unavailable"
+        }
 
     entries = redis_service.get_leaderboard(problem_id, language, limit=top)
     
@@ -18,7 +26,8 @@ def get_leaderboard(problem_id: str, language: str, top: int = 10):
         "problemId": problem_id,
         "language": language,
         "count": len(entries),
-        "entries": entries
+        "entries": entries,
+        "status": "active"
     }
 
 # Submit typing results

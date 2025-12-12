@@ -6,28 +6,43 @@ router = APIRouter()
 
 @router.get("/api/users/{username}")
 def get_user_profile(username: str):
+    if not redis_service.enabled:
+        return {
+            "username": username,
+            "races_completed": 0,
+            "avg_wpm": 0,
+            "max_wpm": 0,
+            "status": "unavailable"
+        }
+
     stats = redis_service.get_user_stats(username)
     if not stats:
         return {
             "username": username,
             "races_completed": 0,
             "avg_wpm": 0,
-            "max_wpm": 0
+            "max_wpm": 0,
+            "status": "active"
         }
     
     return {
         "username": username,
-        **stats
+        **stats,
+        "status": "active"
     }
 
 @router.get("/api/users/{username}/problems/{problem_id}")
 def get_user_problem_performance(username: str, problem_id: str, language: str = "python"):
+    if not redis_service.enabled:
+        return {"found": False, "status": "unavailable"}
+
     stats = redis_service.get_user_problem_stats(problem_id, language, username)
     if not stats:
-        return {"found": False}
+        return {"found": False, "status": "active"}
     
     return {
         "found": True,
+        "status": "active",
         "username": username,
         "problemId": problem_id,
         "language": language,
