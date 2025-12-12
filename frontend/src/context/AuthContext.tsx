@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useState, useEffect } from "react";
 import { auth, githubProvider } from "@/lib/firebase";
-import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, signOut, onAuthStateChanged, getAdditionalUserInfo, updateProfile } from "firebase/auth";
 
 interface User {
   uid: string;
@@ -42,7 +42,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, githubProvider);
+      const result = await signInWithPopup(auth, githubProvider);
+      
+      // Extract GitHub username from additionalUserInfo
+      const additionalInfo = getAdditionalUserInfo(result);
+      const githubUsername = additionalInfo?.username;
+
+      if (githubUsername && result.user) {
+        console.log("GitHub Username:", githubUsername);
+        
+        // Update Firebase profile with the GitHub username
+        await updateProfile(result.user, {
+          displayName: githubUsername
+        });
+        
+        // Update local state immediately to reflect the change
+        setUser(prev => prev ? { ...prev, username: githubUsername } : {
+          uid: result.user.uid,
+          username: githubUsername,
+          photoURL: result.user.photoURL || "",
+          email: result.user.email || undefined,
+          getToken: () => result.user.getIdToken(),
+        });
+      }
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
