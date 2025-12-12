@@ -57,7 +57,10 @@ export default function DynamicGamePage() {
       language: payload.language || selectedLanguage,
     };
     try {
-      const res = await fetch(`${API_BASE_URL}/api/results`, {
+      const url = `${API_BASE_URL}/api/results`;
+      console.log("Submitting stats to:", url, payloadWithLanguage);
+      
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

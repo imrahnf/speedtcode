@@ -13,7 +13,7 @@ interface TypingEngineProps {
   problemId?: string;
   language?: "python" | "javascript" | "cpp" | string;
   onFinish?: (stats: GameStats) => void;
-  onSubmitStats?: (payload: GameResultPayload) => Promise<void>;
+  onSubmitStats?: (payload: GameResultPayload) => Promise<number | void>;
   onProgress?: (stats: GameStats & { progress: number }) => void;
   maxLinesVisible?: number;
   onMaxLinesChange?: (lines: number) => void;
@@ -70,7 +70,7 @@ export default function TypingEngine({
   const [currentAccuracy, setCurrentAccuracy] = useState(100);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [finalStats, setFinalStats] = useState<GameStats | null>(null);
-  const [userRank, setUserRank] = useState<number>(1);
+  const [userRank, setUserRank] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // Refs
@@ -691,7 +691,9 @@ export default function TypingEngine({
                 <Trophy className="w-5 h-5 text-teal-600" />
                 <div>
                   <div className="text-xs opacity-70 uppercase tracking-wider font-semibold">Rank</div>
-                  <div className="text-2xl font-black">#{userRank}</div>
+                  <div className="text-2xl font-black">
+                    {userRank !== null ? `#${userRank}` : <span className="text-sm text-gray-400 animate-pulse">Calculating...</span>}
+                  </div>
                 </div>
               </div>
             </div>
@@ -705,6 +707,7 @@ export default function TypingEngine({
                 setCurrentWpm(0);
                 setCurrentAccuracy(100);
                 setHasSubmitted(false);
+                setUserRank(null);
                 if (inputRef.current) inputRef.current.value = "";
               }}
               className="px-6 py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-all text-sm whitespace-nowrap shadow-lg"

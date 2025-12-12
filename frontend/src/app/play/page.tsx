@@ -24,6 +24,15 @@ export default function PlayPage() {
     fetcher
   );
 
+  const { data: leaderboardData } = useSWR(
+    selectedProblemId ? `${API_BASE_URL}/api/leaderboard/${selectedProblemId}?language=${selectedLanguage}` : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      keepPreviousData: true 
+    }
+  );
+
   // Auto-select first problem
   React.useEffect(() => {
     if (problems && problems.length > 0 && !selectedProblemId) {
@@ -238,29 +247,30 @@ export default function PlayPage() {
                 Top scores for <span className="font-bold text-gray-600">{problemDetails?.title}</span> ({selectedLanguage})
               </div>
               
-              {/* Mock Entries */}
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="bg-white p-3 rounded-xl shadow-sm flex items-center gap-3">
-                  <div className={`w-6 h-6 flex items-center justify-center font-bold text-sm ${
-                    i === 1 ? 'text-yellow-500' : i === 2 ? 'text-gray-400' : i === 3 ? 'text-orange-400' : 'text-gray-300'
-                  }`}>
-                    #{i}
+              {/* Real Entries */}
+              {leaderboardData?.entries?.length > 0 ? (
+                leaderboardData.entries.map((entry: any) => (
+                  <div key={entry.rank} className="bg-white p-3 rounded-xl shadow-sm flex items-center gap-3">
+                    <div className={`w-6 h-6 flex items-center justify-center font-bold text-sm ${
+                      entry.rank === 1 ? 'text-yellow-500' : entry.rank === 2 ? 'text-gray-400' : entry.rank === 3 ? 'text-orange-400' : 'text-gray-300'
+                    }`}>
+                      #{entry.rank}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-sm text-gray-900">{entry.username}</div>
+                      <div className="text-xs text-gray-500">Acc: {entry.accuracy?.toFixed(1)}%</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-teal-700">{entry.wpm?.toFixed(0)} WPM</div>
+                      <div className="text-[10px] text-gray-400">Score: {entry.score?.toFixed(0)}</div>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-gray-900">User_{Math.random().toString(36).substr(2, 5)}</div>
-                    <div className="text-xs text-gray-500">{(Math.random() * 10 + 5).toFixed(2)}s</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-teal-700">{Math.floor(Math.random() * 100 + 50)} WPM</div>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center text-gray-400 text-sm py-8">
+                  No scores yet. <br/>Be the first to conquer this problem!
                 </div>
-              ))}
-              
-              <div className="text-center text-xs text-gray-400 mt-4">
-                Leaderboard is currently mocked.
-                <br/>
-                Database integration pending.
-              </div>
+              )}
             </div>
           ) : (
             <div className="text-center text-gray-400 text-sm mt-10">

@@ -1,6 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file (looks in current and parent dirs)
+load_dotenv()
+
 from services.lobby_manager import lobby_manager
 from routers import lobbies, problems, results, general
 
