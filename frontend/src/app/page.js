@@ -229,12 +229,12 @@ export default function LandingPage() {
 
       </div>
 
-      {/* Footer Stats - Moved to Top Left */}
+      {/* Footer Stats - Moved to Bottom Left (avoid overlapping content) */}
       <motion.div 
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.2, duration: 0.8 }}
-        className="absolute top-6 left-6 flex gap-4 text-gray-500 font-mono text-xs font-semibold tracking-wider uppercase hidden md:flex"
+        className="absolute bottom-6 left-6 flex gap-4 text-gray-500 font-mono text-xs font-semibold tracking-wider uppercase hidden md:flex z-40"
       >
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/40 backdrop-blur-sm border border-white/20 shadow-sm">
           <Terminal className="w-3 h-3" />
