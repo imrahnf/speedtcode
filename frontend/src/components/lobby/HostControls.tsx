@@ -55,7 +55,7 @@ export default function HostControls({ onNextRound, currentProblemId, currentLan
         <div className="space-y-3">
           <div>
             <ProblemSelector 
-              problems={problems || []}
+              problems={problems ? [...problems].sort((a: any, b: any) => a.id.localeCompare(b.id)) : []}
               selectedProblemId={selectedProblem}
               onSelect={setSelectedProblem}
               className="max-h-[300px] flex flex-col"

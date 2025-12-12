@@ -142,7 +142,7 @@ export default function CreateLobbyPage() {
         <div className="space-y-6">
           {/* Problem Selection */}
           <ProblemSelector 
-            problems={problems || []}
+            problems={problems ? [...problems].sort((a: any, b: any) => a.id.localeCompare(b.id)) : []}
             selectedProblemId={selectedProblem}
             onSelect={setSelectedProblem}
           />

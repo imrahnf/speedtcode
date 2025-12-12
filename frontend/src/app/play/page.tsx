@@ -45,7 +45,7 @@ export default function PlayPage() {
   const filteredProblems = problems?.filter((p: any) => 
     p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
     p.id.includes(searchQuery)
-  ) || [];
+  ).sort((a: any, b: any) => a.id.localeCompare(b.id)) || [];
 
   // Auto-select language
   React.useEffect(() => {

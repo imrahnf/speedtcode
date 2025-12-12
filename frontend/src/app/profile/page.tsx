@@ -31,7 +31,9 @@ export default function ProfilePage() {
   );
 
   const filteredProblems = searchQuery 
-    ? problems?.filter((p: any) => p.title.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5) 
+    ? problems?.filter((p: any) => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
+        .sort((a: any, b: any) => a.id.localeCompare(b.id))
+        .slice(0, 5) 
     : [];
 
   if (loading || statsLoading) {
