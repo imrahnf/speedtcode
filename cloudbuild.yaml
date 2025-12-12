@@ -1,0 +1,5 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'build', '-t', 'gcr.io/speedt-code/speedtcode-backend', '-f', 'backend/Dockerfile', '.' ]
+images:
+  - 'gcr.io/speedt-code/speedtcode-backend'

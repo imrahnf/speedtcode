@@ -3,6 +3,7 @@
 .gitignore
 *.md
 .vscode/
+cloud-run-env.yaml
 
 # Python
 backend/venv/
