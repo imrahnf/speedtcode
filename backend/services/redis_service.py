@@ -62,9 +62,9 @@ class RedisService:
         if not self.enabled:
             return None
             
-        user_key = f"user:{username}:stats"
+        user_stats_key = f"user:stats:{username}"
         try:
-            stats = self.client.hgetall(user_key)
+            stats = self.client.hgetall(user_stats_key)
             if not stats:
                 return {
                     "races_completed": 0,
@@ -72,10 +72,16 @@ class RedisService:
                     "max_wpm": 0
                 }
             
+            races = int(stats.get("races_completed", 0))
+            total_wpm = float(stats.get("total_wpm", 0))
+            max_wpm = float(stats.get("max_wpm", 0))
+            
+            avg_wpm = round(total_wpm / races, 1) if races > 0 else 0
+
             return {
-                "races_completed": int(stats.get("races_completed", 0)),
-                "avg_wpm": float(stats.get("avg_wpm", 0)),
-                "max_wpm": float(stats.get("max_wpm", 0))
+                "races_completed": races,
+                "avg_wpm": avg_wpm,
+                "max_wpm": max_wpm
             }
         except Exception as e:
             logger.error(f"Failed to get user stats: {e}")
@@ -84,6 +90,7 @@ class RedisService:
     def add_score(self, problem_id: str, language: str, username: str, wpm: float, accuracy: float, score: float):
         """
         Add score to leaderboard using ZSET for ranking and Hash for details.
+        Also updates global user stats.
         """
 
         if not self.enabled:
@@ -91,8 +98,23 @@ class RedisService:
         
         lb_key = f"leaderboard:{problem_id}:{language}"
         details_key = f"score_details:{problem_id}:{language}:{username}"
+        user_stats_key = f"user:stats:{username}"
 
         try:
+            # 1. Update Global User Stat
+            # We need to track total WPM sum to calculate average
+            pipe = self.client.pipeline()
+            pipe.hincrby(user_stats_key, "races_completed", 1)
+            pipe.hincrbyfloat(user_stats_key, "total_wpm", wpm)
+            
+            # Check if this is a new max WPM
+            current_max_wpm = self.client.hget(user_stats_key, "max_wpm")
+            if current_max_wpm is None or wpm > float(current_max_wpm):
+                pipe.hset(user_stats_key, "max_wpm", wpm)
+            
+            pipe.execute()
+
+            # 2. Update Leaderboard (Only if high score)
             # Check current score first
             current_score = self.client.zscore(lb_key, username)
             

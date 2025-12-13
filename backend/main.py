@@ -43,12 +43,12 @@ from routers import lobbies, problems, results, general, users
 
 app = FastAPI()
 
-# Edit Later: restrict origins in prod
 allow_origins = [
     "http://localhost:3000",  # local dev
     "https://speedtcode-hx4o.vercel.app",  # vercel
-    "https://speedtcode.dev",      
-    "https://www.speedtcode.dev", 
+    "https://speedtcode.dev" ,  # old domain  
+    "https://www.speedtcode.dev", # production
+    "http://192.168.0.109:3000" # local network testing
 ]
 
 app.add_middleware(
