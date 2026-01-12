@@ -4,7 +4,7 @@
 
 Improve your syntax muscle memory, track your WPM, and climb the leaderboards.
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://speedtcode.dev) [![Backend](https://img.shields.io/badge/backend-Cloud%20Run-blue)](https://speedtcode-backend-731249684034.us-central1.run.app)
+[**🏆 View the Hall of Fame**](#hall-of-fame) | [**🐞 Report a Bug**](https://forms.gle/GYKk7RmLJgxepnrz6) | [**▶️ Join a Lobby**](https://speedtcode.dev)
 
 ---
 
