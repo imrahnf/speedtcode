@@ -235,6 +235,56 @@ gcloud run deploy speedtcode-backend \
   --max-instances 1
 ```
 
+## Help Improve Speed(t)Code
+Have you tested the app? I'm looking for technical feedback on the stability and typing engine latency.
+➣ **[Submit your Feedback & Bug Reports here](https://forms.gle/GYKk7RmLJgxepnrz6)**
+
+*By submitting the form, you can opt-in to be featured in the Hall of Fame below!*
+
+## Hall of Fame
+
+A massive thank you to everyone who helped stress test the game and try to break the typing engine!
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/imrahnf">
+        <img src="https://github.com/imrahnf.png" width="100px;" alt="User 1"/><br />
+        <sub><b>imrahnf</b></sub>
+      </a><br />
+      Me!
+    </td>
+    <td align="center">
+      <a href="https://github.com/imankamrann">
+        <img src="https://github.com/imankamrann.png" width="100px;" alt="User 1"/><br />
+        <sub><b>imankamrann</b></sub>
+      </a><br />
+      Tester
+    </td>
+        <td align="center">
+      <a href="https://github.com/burhanf">
+        <img src="https://github.com/burhanf.png" width="100px;" alt="User 1"/><br />
+        <sub><b>burhanf</b></sub>
+      </a><br />
+      Tester
+    </td>
+        <td align="center">
+      <a href="https://github.com/HARSHEE04">
+        <img src="https://github.com/HARSHEE04.png" width="100px;" alt="User 1"/><br />
+        <sub><b>HARSHEE04</b></sub>
+      </a><br />
+      Tester
+    </td>
+        <td align="center">
+      <a href="https://github.com/MaryamElhamidi">
+        <img src="https://github.com/MaryamElhamidi.png" width="100px;" alt="User 1"/><br />
+        <sub><b>MaryamElhamidi</b></sub>
+      </a><br />
+      Tester
+    </td>    
+  </tr>
+</table>
+
 ---
 
 Built with ❤️ by [Omrahn Faqiri](https://omrahnfaqiri.com)
