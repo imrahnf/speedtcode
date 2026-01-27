@@ -281,7 +281,15 @@ A massive thank you to everyone who helped stress test the game and try to break
         <sub><b>MaryamElhamidi</b></sub>
       </a><br />
       Tester
-    </td>    
+    </td>
+    </td>
+        <td align="center">
+      <a href="https://github.com/MornTHEMorning">
+        <img src="https://github.com/MornTHEMorning.png" width="100px;" alt="User 1"/><br />
+        <sub><b>MornTHEMorning</b></sub>
+      </a><br />
+      Tester
+    </td>  
   </tr>
 </table>
 
