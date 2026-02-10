@@ -1,5 +1,5 @@
 # Speed(t)Code
-
+## 🎥 View the gameplay [here](https://www.linkedin.com/feed/update/urn:li:ugcPost:7407561805444587521) 🎬
 > The ultimate typing speed test for developers. Race against time (and others) by typing real code snippets.
 
 Improve your syntax muscle memory, track your WPM, and climb the leaderboards.
